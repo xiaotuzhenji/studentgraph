@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SourceType {
+  question
+  blog_link
+  project_link
+  book
+}
+
+enum NodeType {
+  source
+  explanation
+  question
+  note
+}
+
+enum GenerationStatus {
+  idle
+  pending
+  completed
+  failed
+}
+
+enum LearnedStatus {
+  not_started
+  learning
+  learned
+}
+
+enum ModelConfigKind {
+  platform
+  user_key
+}
+
+enum KnowledgeRecordType {
+  node
+  knowledge_point
+}
+
+enum GenerationAction {
+  initial_parse
+  expand_point
+  ask_question
+  retry
+}
+
+model User {
+  id                   String                @id @default(cuid())
+  email                String                @unique
+  passwordHash         String
+  name                 String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  canvases             LearningCanvas[]
+  sources              LearningSource[]
+  nodes                LearningNode[]
+  knowledgePoints      KnowledgePoint[]
+  knowledgeRecords     KnowledgeRecord[]
+  modelProviderConfigs ModelProviderConfig[]
+  aiGenerations        AiGeneration[]
+}
+
+model ModelProviderConfig {
+  id            String           @id @default(cuid())
+  userId        String
+  kind          ModelConfigKind
+  name          String
+  provider      String
+  baseUrl       String?
+  model         String
+  encryptedKey  String?
+  isDefault     Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aiGenerations AiGeneration[]
+
+  @@index([userId])
+}
+
+model LearningCanvas {
+  id        String         @id @default(cuid())
+  userId    String
+  title     String
+  isDefault Boolean        @default(false)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodes     LearningNode[]
+
+  @@index([userId])
+}
+
+model LearningSource {
+  id           String         @id @default(cuid())
+  userId       String
+  type         SourceType
+  title        String
+  url          String?
+  author       String?
+  description  String?
+  learningGoal String?
+  rawInput     String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodes        LearningNode[]
+
+  @@index([userId])
+  @@index([type])
+}
+
+model LearningNode {
+  id                     String            @id @default(cuid())
+  userId                 String
+  canvasId               String
+  sourceId               String
+  parentId               String?
+  sourceKnowledgePointId String?
+  type                   NodeType
+  title                  String
+  content                String?
+  selectedText           String?
+  generationStatus       GenerationStatus  @default(idle)
+  learnedStatus          LearnedStatus     @default(not_started)
+  positionX              Float             @default(0)
+  positionY              Float             @default(0)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  deletedAt              DateTime?
+  user                   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  canvas                 LearningCanvas    @relation(fields: [canvasId], references: [id], onDelete: Cascade)
+  source                 LearningSource    @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  parent                 LearningNode?     @relation("NodeBranches", fields: [parentId], references: [id])
+  children               LearningNode[]    @relation("NodeBranches")
+  sourceKnowledgePoint   KnowledgePoint?   @relation("BranchSourceKnowledgePoint", fields: [sourceKnowledgePointId], references: [id])
+  knowledgePoints        KnowledgePoint[]  @relation("NodeKnowledgePoints")
+  knowledgeRecords       KnowledgeRecord[] @relation("NodeKnowledgeRecords")
+  aiGenerations          AiGeneration[]
+
+  @@index([userId])
+  @@index([canvasId])
+  @@index([sourceId])
+  @@index([parentId])
+  @@index([sourceKnowledgePointId])
+}
+
+model KnowledgePoint {
+  id                 String           @id @default(cuid())
+  userId             String
+  nodeId             String
+  title              String
+  summary            String?
+  learnedStatus      LearnedStatus    @default(not_started)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node               LearningNode     @relation("NodeKnowledgePoints", fields: [nodeId], references: [id], onDelete: Cascade)
+  branchNodes        LearningNode[]   @relation("BranchSourceKnowledgePoint")
+  knowledgeRecord    KnowledgeRecord? @relation("KnowledgePointRecord")
+
+  @@index([userId])
+  @@index([nodeId])
+}
+
+model KnowledgeRecord {
+  id                     String              @id @default(cuid())
+  userId                 String
+  type                   KnowledgeRecordType
+  title                  String
+  notes                  String?
+  learnedStatus          LearnedStatus       @default(not_started)
+  sourceNodeId           String?
+  sourceKnowledgePointId String?             @unique
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceNode             LearningNode?       @relation("NodeKnowledgeRecords", fields: [sourceNodeId], references: [id])
+  sourceKnowledgePoint   KnowledgePoint?     @relation("KnowledgePointRecord", fields: [sourceKnowledgePointId], references: [id])
+
+  @@index([userId])
+  @@index([sourceNodeId])
+}
+
+model AiGeneration {
+  id            String                @id @default(cuid())
+  userId        String
+  nodeId        String
+  modelConfigId String?
+  action        GenerationAction
+  status        GenerationStatus      @default(pending)
+  prompt        String?
+  input         String?
+  output        String?
+  error         String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node          LearningNode          @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  modelConfig   ModelProviderConfig?  @relation(fields: [modelConfigId], references: [id])
+
+  @@index([userId])
+  @@index([nodeId])
+  @@index([modelConfigId])
+  @@index([status])
+}
