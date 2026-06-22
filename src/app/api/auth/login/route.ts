@@ -6,7 +6,10 @@ import { createSessionToken } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
 const authSchema = z.object({
-  email: z.string().email().max(254),
+  email: z.preprocess(
+    (value) => (typeof value === "string" ? value.trim().toLowerCase() : value),
+    z.string().email().max(254)
+  ),
   password: z.string().min(8).max(200)
 });
 
@@ -24,7 +27,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 400 });
   }
 
-  const email = parsed.data.email.trim().toLowerCase();
+  const email = parsed.data.email;
   const user = await db.user.findUnique({ where: { email } });
   if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });

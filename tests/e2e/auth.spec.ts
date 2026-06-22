@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("user can register and reach the canvas", async ({ page }) => {
-  const email = `learner-${Date.now()}@example.com`;
+  const email = ` Learner-${Date.now()}@example.com `;
 
   await page.goto("/register");
   await page.getByLabel("Email").fill(email);
