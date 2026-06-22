@@ -55,7 +55,7 @@ describe("session helpers", () => {
   });
 
   it("throws when SESSION_SECRET is missing", async () => {
-    vi.unstubAllEnvs();
+    vi.stubEnv("SESSION_SECRET", undefined);
 
     await expect(readSessionToken("not-a-jwt")).rejects.toThrow(
       "SESSION_SECRET is required",

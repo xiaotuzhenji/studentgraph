@@ -21,8 +21,21 @@ const sessionCookieOptions = {
   maxAge: 60 * 60 * 24 * 30
 };
 
+async function readJson(request: Request) {
+  try {
+    return await request.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
-  const parsed = authSchema.safeParse(await request.json());
+  const body = await readJson(request);
+  if (!body) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  const parsed = authSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 400 });
   }

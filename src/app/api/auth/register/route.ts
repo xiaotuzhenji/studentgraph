@@ -21,8 +21,25 @@ const sessionCookieOptions = {
   maxAge: 60 * 60 * 24 * 30
 };
 
+async function readJson(request: Request) {
+  try {
+    return await request.json();
+  } catch {
+    return null;
+  }
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
+}
+
 export async function POST(request: Request) {
-  const parsed = authSchema.safeParse(await request.json());
+  const body = await readJson(request);
+  if (!body) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  const parsed = authSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 400 });
   }
@@ -33,12 +50,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email already registered" }, { status: 409 });
   }
 
-  const user = await db.user.create({
-    data: {
-      email,
-      passwordHash: await hashPassword(parsed.data.password)
+  let user;
+  try {
+    user = await db.user.create({
+      data: {
+        email,
+        passwordHash: await hashPassword(parsed.data.password)
+      }
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return NextResponse.json({ error: "Email already registered" }, { status: 409 });
     }
-  });
+    throw error;
+  }
+
   const token = await createSessionToken(user.id);
   const response = NextResponse.json({ ok: true });
   response.cookies.set(sessionCookieName, token, sessionCookieOptions);
