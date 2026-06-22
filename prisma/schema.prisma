@@ -149,7 +149,8 @@ model LearningNode {
   source                 LearningSource    @relation(fields: [sourceId, userId], references: [id, userId], onDelete: Cascade)
   parent                 LearningNode?     @relation("NodeBranches", fields: [parentId, userId], references: [id, userId])
   children               LearningNode[]    @relation("NodeBranches")
-  sourceKnowledgePoint   KnowledgePoint?   @relation("BranchSourceKnowledgePoint", fields: [sourceKnowledgePointId, userId], references: [id, userId])
+  /// Branch provenance: many branch nodes can originate from the same knowledge point.
+  sourceKnowledgePoint   KnowledgePoint?   @relation("KnowledgePointBranchProvenance", fields: [sourceKnowledgePointId, userId], references: [id, userId])
   knowledgePoints        KnowledgePoint[]  @relation("NodeKnowledgePoints")
   knowledgeRecords       KnowledgeRecord[] @relation("NodeKnowledgeRecords")
   aiGenerations          AiGeneration[]
@@ -177,7 +178,7 @@ model KnowledgePoint {
   updatedAt                DateTime         @updatedAt
   user                     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   node                     LearningNode     @relation("NodeKnowledgePoints", fields: [nodeId, userId], references: [id, userId], onDelete: Cascade)
-  branchNodes              LearningNode[]   @relation("BranchSourceKnowledgePoint")
+  branchNodes              LearningNode[]   @relation("KnowledgePointBranchProvenance")
   matchedKnowledgeRecord   KnowledgeRecord? @relation("MatchedKnowledgeRecord", fields: [matchedKnowledgeRecordId, userId], references: [id, userId])
   sourceKnowledgeRecord    KnowledgeRecord? @relation("KnowledgePointRecord")
 

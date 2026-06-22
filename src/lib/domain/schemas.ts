@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { branchKinds, sourceTypes } from "./enums";
+import { branchKinds, learnedStatuses, sourceTypes } from "./enums";
 
 export const createSourceSchema = z.object({
   type: z.enum(sourceTypes),
@@ -21,5 +21,5 @@ export const createBranchSchema = z.object({
 });
 
 export const learnedStatusSchema = z.object({
-  learnedStatus: z.enum(["not_started", "learning", "learned"])
+  learnedStatus: z.enum(learnedStatuses)
 });
