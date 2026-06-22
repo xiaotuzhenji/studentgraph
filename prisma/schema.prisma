@@ -70,12 +70,12 @@ model ModelProviderConfig {
   id            String           @id @default(cuid())
   userId        String
   kind          ModelConfigKind
-  name          String
+  displayName   String
   provider      String
   baseUrl       String?
-  model         String
-  encryptedKey  String?
-  isDefault     Boolean          @default(false)
+  modelName     String
+  encryptedApiKey String?
+  isEnabled     Boolean          @default(true)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -107,6 +107,10 @@ model LearningSource {
   description  String?
   learningGoal String?
   rawInput     String?
+  fetchStatus  GenerationStatus @default(idle)
+  fetchedTitle String?
+  fetchedDescription String?
+  fetchedContent String?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -125,12 +129,15 @@ model LearningNode {
   sourceKnowledgePointId String?
   type                   NodeType
   title                  String
+  summary                String?
   content                String?
   selectedText           String?
   generationStatus       GenerationStatus  @default(idle)
   learnedStatus          LearnedStatus     @default(not_started)
-  positionX              Float             @default(0)
-  positionY              Float             @default(0)
+  x                      Float             @default(0)
+  y                      Float             @default(0)
+  hasManualPosition      Boolean           @default(false)
+  modelUsed              String?
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
   deletedAt              DateTime?
@@ -157,25 +164,34 @@ model KnowledgePoint {
   nodeId             String
   title              String
   summary            String?
+  content            String?
+  orderIndex         Int
   learnedStatus      LearnedStatus    @default(not_started)
+  matchedKnowledgeRecordId String?     @unique
+  matchConfidence    Float?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   node               LearningNode     @relation("NodeKnowledgePoints", fields: [nodeId], references: [id], onDelete: Cascade)
   branchNodes        LearningNode[]   @relation("BranchSourceKnowledgePoint")
-  knowledgeRecord    KnowledgeRecord? @relation("KnowledgePointRecord")
+  matchedKnowledgeRecord KnowledgeRecord? @relation("MatchedKnowledgeRecord", fields: [matchedKnowledgeRecordId], references: [id])
+  sourceKnowledgeRecord  KnowledgeRecord? @relation("KnowledgePointRecord")
 
   @@index([userId])
   @@index([nodeId])
+  @@index([matchedKnowledgeRecordId])
 }
 
 model KnowledgeRecord {
   id                     String              @id @default(cuid())
   userId                 String
-  type                   KnowledgeRecordType
+  recordType             KnowledgeRecordType
   title                  String
-  notes                  String?
-  learnedStatus          LearnedStatus       @default(not_started)
+  summary                String?
+  keywords               String[]
+  rawText                String?
+  learnedAt              DateTime?
+  isActive               Boolean             @default(true)
   sourceNodeId           String?
   sourceKnowledgePointId String?             @unique
   createdAt              DateTime            @default(now())
@@ -183,6 +199,7 @@ model KnowledgeRecord {
   user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   sourceNode             LearningNode?       @relation("NodeKnowledgeRecords", fields: [sourceNodeId], references: [id])
   sourceKnowledgePoint   KnowledgePoint?     @relation("KnowledgePointRecord", fields: [sourceKnowledgePointId], references: [id])
+  matchedKnowledgePoint  KnowledgePoint?     @relation("MatchedKnowledgeRecord")
 
   @@index([userId])
   @@index([sourceNodeId])
@@ -196,9 +213,10 @@ model AiGeneration {
   action        GenerationAction
   status        GenerationStatus      @default(pending)
   prompt        String?
-  input         String?
-  output        String?
-  error         String?
+  inputPayload  Json?
+  outputPayload Json?
+  rawOutput     String?
+  errorMessage  String?
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
   user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
