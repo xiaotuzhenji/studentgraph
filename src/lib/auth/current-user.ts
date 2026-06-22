@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { db } from "@/lib/db";
 import { readSessionToken } from "./session";
 
 export const sessionCookieName = "studentgraph_session";
@@ -13,6 +12,7 @@ export async function getCurrentUser() {
   const session = await readSessionToken(token);
   if (!session) return null;
 
+  const { db } = await import("@/lib/db");
   return db.user.findUnique({ where: { id: session.userId } });
 }
 

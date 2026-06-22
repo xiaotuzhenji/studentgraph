@@ -19,9 +19,16 @@ export async function createSessionToken(userId: string) {
 }
 
 export async function readSessionToken(token: string) {
+  const secret = getSecret();
+
   try {
-    const result = await jwtVerify<{ userId: string }>(token, getSecret());
-    return { userId: result.payload.userId };
+    const result = await jwtVerify(token, secret);
+    const { userId } = result.payload;
+    if (typeof userId !== "string" || userId.length === 0) {
+      return null;
+    }
+
+    return { userId };
   } catch {
     return null;
   }
