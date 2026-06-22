@@ -1,7 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import HomePage from "@/app/page";
 
-describe("test runner", () => {
-  it("runs", () => {
-    expect(1 + 1).toBe(2);
+const redirect = vi.hoisted(() => vi.fn());
+
+vi.mock("next/navigation", () => ({
+  redirect
+}));
+
+describe("HomePage", () => {
+  it("redirects to the canvas", () => {
+    HomePage();
+
+    expect(redirect).toHaveBeenCalledWith("/canvas");
   });
 });
