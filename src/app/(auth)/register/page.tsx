@@ -31,7 +31,13 @@ export default function RegisterPage() {
     <main className="auth-page">
       <section className="auth-card card">
         <div className="auth-card-head">
-          <span className="auth-kicker">知枝</span>
+          <a href="/canvas" className="auth-brand" aria-label="知枝">
+            <span className="auth-brand-mark">知</span>
+            <span className="auth-brand-copy">
+              <strong>知枝</strong>
+              <span>AI 学习画布</span>
+            </span>
+          </a>
           <h1>创建账号</h1>
           <p className="lead">先注册，再把问题、链接、项目和书籍丢进你的学习画布。</p>
         </div>
