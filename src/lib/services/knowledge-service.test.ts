@@ -65,6 +65,7 @@ describe("knowledge service", () => {
       where: { id_userId: { id: "node_1", userId: "user_1" } },
       data: { learnedStatus: "learned" }
     });
+    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: "Serializable" });
     expect(db.knowledgeRecord.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         userId: "user_1",

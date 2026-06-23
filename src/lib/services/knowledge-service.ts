@@ -17,6 +17,7 @@ export function titlesMatch(a: string, b: string) {
 
 export async function markNodeLearned(userId: string, nodeId: string, learnedStatus: LearnedStatus) {
   return db.$transaction(async (tx) => {
+    // This update makes concurrent learned toggles contend on the node row before record lookup/create.
     const node = await tx.learningNode.update({
       where: { id_userId: { id: nodeId, userId } },
       data: { learnedStatus }
@@ -29,7 +30,7 @@ export async function markNodeLearned(userId: string, nodeId: string, learnedSta
 
     await upsertNodeKnowledgeRecord(tx, userId, node);
     return node;
-  });
+  }, { isolationLevel: "Serializable" });
 }
 
 export async function markKnowledgePointLearned(userId: string, pointId: string, learnedStatus: LearnedStatus) {
