@@ -94,7 +94,7 @@ export function SourceForm() {
   const needsUrl = type === "blog_link" || type === "project_link";
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.875rem", maxWidth: "32rem" }}>
+    <form id="new-learning-content" onSubmit={handleSubmit} style={{ display: "grid", gap: "0.875rem", maxWidth: "32rem" }}>
       <fieldset style={{ border: 0, display: "grid", gap: "0.5rem", padding: 0 }}>
         <legend>Source type</legend>
         {sourceTypes.map((sourceType) => (

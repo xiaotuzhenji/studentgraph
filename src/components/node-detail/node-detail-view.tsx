@@ -273,7 +273,10 @@ export function NodeDetailView({ node, source, knowledgePoints, branchNodes, mod
         }}
       >
         <h2>Add note branch</h2>
-        <form onSubmit={handleNoteSubmit} style={{ display: "grid", gap: "0.875rem", maxWidth: "32rem" }}>
+        <a href="#note-branch-form" role="button">
+          Add note branch
+        </a>
+        <form id="note-branch-form" onSubmit={handleNoteSubmit} style={{ display: "grid", gap: "0.875rem", maxWidth: "32rem" }}>
           <label style={{ display: "grid", gap: "0.375rem" }}>
             Note title
             <input name="title" placeholder={`Note: ${node.title}`} />

@@ -43,6 +43,9 @@ export default async function CanvasPage() {
         >
           <h1 style={{ marginTop: 0 }}>Learning Canvas</h1>
           <p>Create a source, then open cards from the canvas to keep learning.</p>
+          <a href="#new-learning-content" role="button">
+            New learning content
+          </a>
           <SourceForm />
         </aside>
 

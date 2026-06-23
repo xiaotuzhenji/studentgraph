@@ -17,6 +17,10 @@ type KnowledgeListProps = {
 
 type RecordFilter = "all" | "node" | "knowledge_point";
 
+function formatLearnedDate(value: string) {
+  return value.slice(0, 10);
+}
+
 export function KnowledgeList({ records }: KnowledgeListProps) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<RecordFilter>("all");
@@ -79,7 +83,7 @@ export function KnowledgeList({ records }: KnowledgeListProps) {
               {record.summary ? <p>{record.summary}</p> : null}
               {record.learnedAt ? (
                 <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>
-                  Learned at {new Date(record.learnedAt).toLocaleDateString()}
+                  Learned at {formatLearnedDate(record.learnedAt)}
                 </p>
               ) : null}
             </li>
