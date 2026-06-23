@@ -6,6 +6,9 @@ const db = vi.hoisted(() => ({
     create: vi.fn(),
     findFirst: vi.fn(),
     findFirstOrThrow: vi.fn()
+  },
+  modelProviderConfig: {
+    findFirstOrThrow: vi.fn()
   }
 }));
 
@@ -106,6 +109,7 @@ describe("createAiBranch", () => {
     db.learningNode.count.mockReset();
     db.learningNode.create.mockReset();
     db.learningNode.findFirstOrThrow.mockReset();
+    db.modelProviderConfig.findFirstOrThrow.mockReset();
     generationService.runBranchGeneration.mockReset();
   });
 
@@ -120,6 +124,7 @@ describe("createAiBranch", () => {
       y: 0
     });
     db.learningNode.count.mockResolvedValue(0);
+    db.modelProviderConfig.findFirstOrThrow.mockResolvedValue({ id: "config_1" });
     db.learningNode.create.mockResolvedValue({ id: "child_1" });
 
     const input = {
@@ -132,6 +137,10 @@ describe("createAiBranch", () => {
     const { createAiBranch } = await import("./node-service");
     await createAiBranch("user_1", "parent_1", input);
 
+    expect(db.modelProviderConfig.findFirstOrThrow).toHaveBeenCalledWith({
+      where: { id: "config_1", userId: "user_1", isEnabled: true },
+      select: { id: true }
+    });
     expect(db.learningNode.create).toHaveBeenCalledWith({
       data: {
         canvasId: "canvas_1",
@@ -149,5 +158,30 @@ describe("createAiBranch", () => {
       }
     });
     expect(generationService.runBranchGeneration).toHaveBeenCalledWith("user_1", "child_1", "config_1", input);
+  });
+
+  it("validates the model config before creating the pending child", async () => {
+    db.learningNode.findFirstOrThrow.mockResolvedValue({
+      id: "parent_1",
+      userId: "user_1",
+      canvasId: "canvas_1",
+      sourceId: "source_1",
+      title: "React Hooks",
+      x: 0,
+      y: 0
+    });
+    db.learningNode.count.mockResolvedValue(0);
+    db.modelProviderConfig.findFirstOrThrow.mockRejectedValue(new Error("not found"));
+
+    const { createAiBranch } = await import("./node-service");
+    await expect(
+      createAiBranch("user_1", "parent_1", {
+        kind: "explanation",
+        modelConfigId: "other_user_config"
+      })
+    ).rejects.toThrow("not found");
+
+    expect(db.learningNode.create).not.toHaveBeenCalled();
+    expect(generationService.runBranchGeneration).not.toHaveBeenCalled();
   });
 });

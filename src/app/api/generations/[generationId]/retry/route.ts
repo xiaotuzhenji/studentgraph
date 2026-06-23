@@ -23,6 +23,10 @@ export async function POST(_request: Request, context: { params: Promise<{ gener
     return NextResponse.json({ error: "Generation has no model config" }, { status: 400 });
   }
 
+  if (generation.status !== "failed") {
+    return NextResponse.json({ error: "Only failed generations can be retried" }, { status: 409 });
+  }
+
   if (generation.action === "initial_parse") {
     await runInitialParse(user.id, generation.nodeId, generation.modelConfigId);
     return NextResponse.json({ ok: true });

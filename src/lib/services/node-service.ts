@@ -57,6 +57,10 @@ export async function createAiBranch(userId: string, nodeId: string, input: AiBr
   const parent = await db.learningNode.findFirstOrThrow({
     where: { id: nodeId, userId, deletedAt: null }
   });
+  await db.modelProviderConfig.findFirstOrThrow({
+    where: { id: input.modelConfigId, userId, isEnabled: true },
+    select: { id: true }
+  });
   const siblingCount = await db.learningNode.count({
     where: { parentId: nodeId, userId, deletedAt: null }
   });
