@@ -98,15 +98,28 @@ describe("model config service", () => {
   it("disables a config for the current user", async () => {
     db.modelProviderConfig.update.mockResolvedValue({
       id: "config_1",
+      provider: "openai-compatible",
+      displayName: "Study model",
+      modelName: "gpt-test",
+      kind: "user_key",
       isEnabled: false
     });
 
     const { disableModelConfig } = await import("./model-config-service");
-    await disableModelConfig("user_1", "config_1");
+    const config = await disableModelConfig("user_1", "config_1");
 
     expect(db.modelProviderConfig.update).toHaveBeenCalledWith({
       where: { id_userId: { id: "config_1", userId: "user_1" } },
-      data: { isEnabled: false }
+      data: { isEnabled: false },
+      select: {
+        id: true,
+        provider: true,
+        displayName: true,
+        modelName: true,
+        kind: true,
+        isEnabled: true
+      }
     });
+    expect(config).not.toHaveProperty("encryptedApiKey");
   });
 });

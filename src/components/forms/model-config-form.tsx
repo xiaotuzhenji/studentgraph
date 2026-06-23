@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+const saveErrorMessage = "Could not save model config.";
+
 export function ModelConfigForm() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -12,25 +14,30 @@ export function ModelConfigForm() {
     setIsSubmitting(true);
 
     const formData = new FormData(event.currentTarget);
-    const response = await fetch("/api/model-configs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        provider: formData.get("provider"),
-        displayName: formData.get("displayName"),
-        modelName: formData.get("modelName"),
-        apiKey: formData.get("apiKey")
-      })
-    });
 
-    setIsSubmitting(false);
+    try {
+      const response = await fetch("/api/model-configs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: formData.get("provider"),
+          displayName: formData.get("displayName"),
+          modelName: formData.get("modelName"),
+          apiKey: formData.get("apiKey")
+        })
+      });
 
-    if (!response.ok) {
-      setError("模型配置保存失败，请检查输入后再试。");
-      return;
+      if (!response.ok) {
+        setError(saveErrorMessage);
+        return;
+      }
+
+      window.location.reload();
+    } catch {
+      setError(saveErrorMessage);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    window.location.reload();
   }
 
   return (

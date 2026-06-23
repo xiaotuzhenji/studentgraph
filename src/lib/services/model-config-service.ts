@@ -42,6 +42,7 @@ export function createUserModelConfig(input: {
 export function disableModelConfig(userId: string, configId: string) {
   return db.modelProviderConfig.update({
     where: { id_userId: { id: configId, userId } },
-    data: { isEnabled: false }
+    data: { isEnabled: false },
+    select: safeModelConfigSelect
   });
 }
