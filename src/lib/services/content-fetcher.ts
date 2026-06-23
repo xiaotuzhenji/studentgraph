@@ -60,7 +60,14 @@ function isPrivateIp(address: string) {
 
   if (family === 6) {
     const value = address.toLowerCase();
-    return value === "::1" || value.startsWith("fc") || value.startsWith("fd") || value.startsWith("fe80:");
+    const firstSegment = Number.parseInt(value.split(":")[0] || "0", 16);
+
+    return (
+      value === "::" ||
+      value === "::1" ||
+      (firstSegment >= 0xfc00 && firstSegment <= 0xfdff) ||
+      (firstSegment >= 0xfe80 && firstSegment <= 0xfebf)
+    );
   }
 
   return true;

@@ -133,6 +133,24 @@ describe("fetchSourceContent", () => {
     expect(https.request).not.toHaveBeenCalled();
   });
 
+  it("blocks hostnames that resolve to local IPv6 addresses", async () => {
+    dns.lookup.mockResolvedValue([{ address: "fe90::1", family: 6 }]);
+
+    const { fetchSourceContent } = await import("./content-fetcher");
+
+    await expect(
+      fetchSourceContent({ type: "blog_link", title: "Internal", url: "https://ipv6-local.example/admin" })
+    ).resolves.toEqual({ status: "failed" });
+
+    dns.lookup.mockResolvedValue([{ address: "::", family: 6 }]);
+
+    await expect(
+      fetchSourceContent({ type: "blog_link", title: "Internal", url: "https://ipv6-unspecified.example/admin" })
+    ).resolves.toEqual({ status: "failed" });
+
+    expect(https.request).not.toHaveBeenCalled();
+  });
+
   it("limits fetched content size by header and stream length", async () => {
     mockHttpsResponse({ contentLength: "2000000" });
 
