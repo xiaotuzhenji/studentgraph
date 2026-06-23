@@ -18,8 +18,13 @@ const contentFetcher = vi.hoisted(() => ({
   fetchSourceContent: vi.fn()
 }));
 
+const generationService = vi.hoisted(() => ({
+  runInitialParse: vi.fn()
+}));
+
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("./content-fetcher", () => contentFetcher);
+vi.mock("@/lib/ai/generation-service", () => generationService);
 
 describe("createLearningSource", () => {
   beforeEach(() => {
@@ -30,6 +35,7 @@ describe("createLearningSource", () => {
     db.$transaction.mockReset();
     db.$transaction.mockImplementation((callback) => callback(db));
     contentFetcher.fetchSourceContent.mockReset();
+    generationService.runInitialParse.mockReset();
   });
 
   it("creates a default canvas, source, and idle root node", async () => {
@@ -92,6 +98,73 @@ describe("createLearningSource", () => {
         y: 0
       }
     });
+    expect(result.node.id).toBe("node_1");
+    expect(generationService.runInitialParse).not.toHaveBeenCalled();
+  });
+
+  it("creates a source without starting generation when no model is selected", async () => {
+    db.learningCanvas.findFirst.mockResolvedValue({ id: "canvas_1" });
+    db.learningSource.create.mockResolvedValue({ id: "source_1", title: "What is database indexing?" });
+    db.learningNode.create.mockResolvedValue({
+      id: "node_1",
+      title: "What is database indexing?",
+      generationStatus: "idle"
+    });
+    contentFetcher.fetchSourceContent.mockResolvedValue({ status: "idle" });
+
+    const { createLearningSource } = await import("./source-service");
+    const result = await createLearningSource("user_1", {
+      type: "question",
+      title: "What is database indexing?",
+      description: "Explain from first principles"
+    });
+
+    expect(result.node.generationStatus).toBe("idle");
+    expect(generationService.runInitialParse).not.toHaveBeenCalled();
+  });
+
+  it("starts initial generation when a model is selected", async () => {
+    db.learningCanvas.findFirst.mockResolvedValue({ id: "canvas_1" });
+    db.learningSource.create.mockResolvedValue({ id: "source_1", title: "What is database indexing?" });
+    db.learningNode.create.mockResolvedValue({
+      id: "node_1",
+      title: "What is database indexing?",
+      generationStatus: "pending"
+    });
+    contentFetcher.fetchSourceContent.mockResolvedValue({ status: "idle" });
+    generationService.runInitialParse.mockResolvedValue({ title: "Parsed indexing" });
+
+    const { createLearningSource } = await import("./source-service");
+    await createLearningSource("user_1", {
+      type: "question",
+      title: "What is database indexing?",
+      modelConfigId: "config_1"
+    });
+
+    expect(db.learningNode.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ generationStatus: "pending" })
+    });
+    expect(generationService.runInitialParse).toHaveBeenCalledWith("user_1", "node_1", "config_1");
+  });
+
+  it("returns the created source when initial generation fails", async () => {
+    db.learningCanvas.findFirst.mockResolvedValue({ id: "canvas_1" });
+    db.learningSource.create.mockResolvedValue({ id: "source_1", title: "What is database indexing?" });
+    db.learningNode.create.mockResolvedValue({
+      id: "node_1",
+      title: "What is database indexing?",
+      generationStatus: "pending"
+    });
+    contentFetcher.fetchSourceContent.mockResolvedValue({ status: "idle" });
+    generationService.runInitialParse.mockRejectedValue(new Error("model unavailable"));
+
+    const { createLearningSource } = await import("./source-service");
+    const result = await createLearningSource("user_1", {
+      type: "question",
+      title: "What is database indexing?",
+      modelConfigId: "config_1"
+    });
+
     expect(result.node.id).toBe("node_1");
   });
 

@@ -8,7 +8,8 @@ export const createSourceSchema = z.object({
   author: z.string().trim().max(120).optional(),
   description: z.string().trim().max(4000).optional(),
   learningGoal: z.string().trim().max(1000).optional(),
-  rawInput: z.string().trim().max(8000).optional()
+  rawInput: z.string().trim().max(8000).optional(),
+  modelConfigId: z.string().cuid().optional()
 });
 
 export const createBranchSchema = z.object({

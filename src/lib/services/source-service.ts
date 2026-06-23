@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { z } from "zod";
+import { runInitialParse } from "@/lib/ai/generation-service";
 import { db } from "@/lib/db";
 import type { createSourceSchema } from "@/lib/domain/schemas";
 import { fetchSourceContent } from "./content-fetcher";
@@ -31,7 +32,7 @@ export async function createLearningSource(userId: string, input: CreateSourceIn
   const fetchedDescription = fetched.status === "completed" ? fetched.description : undefined;
   const fetchedContent = fetched.status === "completed" ? fetched.content : undefined;
 
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const canvas = await getOrCreateDefaultCanvas(tx, userId);
     const source = await tx.learningSource.create({
       data: {
@@ -59,7 +60,7 @@ export async function createLearningSource(userId: string, input: CreateSourceIn
         title: fetchedTitle ?? input.title,
         summary: fetchedDescription ?? input.description ?? input.learningGoal,
         content: fetchedContent ?? input.rawInput,
-        generationStatus: "idle",
+        generationStatus: input.modelConfigId ? "pending" : "idle",
         x: 0,
         y: 0
       }
@@ -67,4 +68,14 @@ export async function createLearningSource(userId: string, input: CreateSourceIn
 
     return { source, node };
   });
+
+  if (input.modelConfigId) {
+    try {
+      await runInitialParse(userId, result.node.id, input.modelConfigId);
+    } catch {
+      // The card was created successfully; generation-service records failed AI state.
+    }
+  }
+
+  return result;
 }
