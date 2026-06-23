@@ -2,12 +2,23 @@ import type { ModelProviderConfig } from "@prisma/client";
 import { decryptModelKey } from "@/lib/crypto/model-key";
 import { db } from "@/lib/db";
 import { OpenAiCompatibleProvider } from "./openai-compatible";
-import { buildInitialParseMessages, parseLearningJson } from "./prompts";
+import {
+  buildExpansionMessages,
+  buildInitialParseMessages,
+  buildQuestionMessages,
+  parseLearningJson
+} from "./prompts";
 
 type ResolvedModel = {
   baseUrl: string;
   apiKey: string;
   model: string;
+};
+
+type BranchGenerationInput = {
+  kind: "explanation" | "question";
+  selectedText?: string;
+  sourceKnowledgePointId?: string;
 };
 
 function requiredEnv(name: string) {
@@ -73,6 +84,51 @@ function resolveModel(config: ModelProviderConfig): ResolvedModel {
   };
 }
 
+async function persistLearningOutput(input: {
+  userId: string;
+  nodeId: string;
+  generationId: string;
+  modelUsed: string;
+  rawOutput: string;
+}) {
+  const output = parseLearningJson(input.rawOutput);
+
+  await db.$transaction(async (tx) => {
+    await tx.learningNode.update({
+      where: { id_userId: { id: input.nodeId, userId: input.userId } },
+      data: {
+        title: output.title,
+        summary: output.summary,
+        content: output.content,
+        generationStatus: "completed",
+        modelUsed: input.modelUsed
+      }
+    });
+
+    await tx.knowledgePoint.createMany({
+      data: output.knowledgePoints.map((point, orderIndex) => ({
+        userId: input.userId,
+        nodeId: input.nodeId,
+        title: point.title,
+        summary: point.summary,
+        content: point.content,
+        orderIndex
+      }))
+    });
+
+    await tx.aiGeneration.update({
+      where: { id: input.generationId },
+      data: {
+        status: "completed",
+        rawOutput: input.rawOutput,
+        outputPayload: output
+      }
+    });
+  });
+
+  return output;
+}
+
 export async function runInitialParse(userId: string, nodeId: string, modelConfigId: string) {
   let resolvedApiKey: string | undefined;
   const generation = await db.aiGeneration.create({
@@ -103,42 +159,89 @@ export async function runInitialParse(userId: string, nodeId: string, modelConfi
       model: resolvedModel.model,
       messages: buildInitialParseMessages(node.source, node)
     });
-    const output = parseLearningJson(rawOutput);
 
-    await db.$transaction(async (tx) => {
-      await tx.learningNode.update({
+    return await persistLearningOutput({
+      userId,
+      nodeId,
+      generationId: generation.id,
+      modelUsed: resolvedModel.model,
+      rawOutput
+    });
+  } catch (error) {
+    const errorMessage = getErrorMessage(error, resolvedApiKey);
+
+    await ignoreFailure(() =>
+      db.learningNode.update({
         where: { id_userId: { id: nodeId, userId } },
-        data: {
-          title: output.title,
-          summary: output.summary,
-          content: output.content,
-          generationStatus: "completed",
-          modelUsed: resolvedModel.model
-        }
-      });
-
-      await tx.knowledgePoint.createMany({
-        data: output.knowledgePoints.map((point, orderIndex) => ({
-          userId,
-          nodeId,
-          title: point.title,
-          summary: point.summary,
-          content: point.content,
-          orderIndex
-        }))
-      });
-
-      await tx.aiGeneration.update({
+        data: { generationStatus: "failed" }
+      })
+    );
+    await ignoreFailure(() =>
+      db.aiGeneration.update({
         where: { id: generation.id },
         data: {
-          status: "completed",
-          rawOutput,
-          outputPayload: output
+          status: "failed",
+          errorMessage
         }
-      });
+      })
+    );
+
+    throw new Error(errorMessage);
+  }
+}
+
+export async function runBranchGeneration(
+  userId: string,
+  nodeId: string,
+  modelConfigId: string,
+  input: BranchGenerationInput
+) {
+  let resolvedApiKey: string | undefined;
+  const generation = await db.aiGeneration.create({
+    data: {
+      userId,
+      nodeId,
+      modelConfigId,
+      action: input.kind === "question" ? "ask_question" : "expand_point",
+      status: "pending",
+      inputPayload: input
+    }
+  });
+
+  try {
+    const node = await db.learningNode.findFirstOrThrow({
+      where: { id: nodeId, userId },
+      include: {
+        parent: true,
+        sourceKnowledgePoint: true
+      }
+    });
+    const config = await db.modelProviderConfig.findFirstOrThrow({
+      where: { id: modelConfigId, userId, isEnabled: true }
+    });
+    const resolvedModel = resolveModel(config);
+    resolvedApiKey = resolvedModel.apiKey;
+    const provider = new OpenAiCompatibleProvider({
+      baseUrl: resolvedModel.baseUrl,
+      apiKey: resolvedModel.apiKey
+    });
+    const parent = node.parent ?? node;
+    const messages =
+      input.kind === "question"
+        ? buildQuestionMessages(parent, input.selectedText ?? node.selectedText)
+        : buildExpansionMessages(parent, node.sourceKnowledgePoint ?? node);
+    const rawOutput = await provider.completeJson({
+      model: resolvedModel.model,
+      messages
     });
 
-    return output;
+    return await persistLearningOutput({
+      userId,
+      nodeId,
+      generationId: generation.id,
+      modelUsed: resolvedModel.model,
+      rawOutput
+    });
   } catch (error) {
     const errorMessage = getErrorMessage(error, resolvedApiKey);
 

@@ -13,7 +13,7 @@ export const createSourceSchema = z.object({
 
 export const createBranchSchema = z.object({
   kind: z.enum(branchKinds),
-  title: z.string().trim().min(1).max(160),
+  title: z.string().trim().max(160).optional().default(""),
   content: z.string().trim().max(8000).optional(),
   selectedText: z.string().trim().max(8000).optional(),
   sourceKnowledgePointId: z.string().cuid().optional(),
