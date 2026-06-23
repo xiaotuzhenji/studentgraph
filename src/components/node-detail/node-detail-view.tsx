@@ -51,11 +51,13 @@ type NodeDetailViewProps = {
 
 const saveNoteError = "Could not save note branch.";
 const aiBranchError = "Could not start AI branch.";
+const learnedError = "Could not update learned status.";
 
 export function NodeDetailView({ node, source, knowledgePoints, branchNodes, modelConfigs }: NodeDetailViewProps) {
   const [error, setError] = useState("");
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [isStartingAi, setIsStartingAi] = useState(false);
+  const [isUpdatingLearned, setIsUpdatingLearned] = useState(false);
   const [modelConfigId, setModelConfigId] = useState(modelConfigs[0]?.id ?? "");
 
   async function createBranch(body: Record<string, unknown>) {
@@ -118,6 +120,29 @@ export function NodeDetailView({ node, source, knowledgePoints, branchNodes, mod
     }
   }
 
+  async function updateLearnedStatus(path: string) {
+    setError("");
+    setIsUpdatingLearned(true);
+
+    try {
+      const response = await fetch(path, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ learnedStatus: "learned" })
+      });
+
+      if (!response.ok) {
+        throw new Error("Learned request failed");
+      }
+
+      window.location.reload();
+    } catch {
+      setError(learnedError);
+    } finally {
+      setIsUpdatingLearned(false);
+    }
+  }
+
   return (
     <main style={{ display: "grid", gap: "1.5rem", padding: "2rem" }}>
       <a href="/canvas">Back to /canvas</a>
@@ -142,8 +167,12 @@ export function NodeDetailView({ node, source, knowledgePoints, branchNodes, mod
           ) : null}
         </p>
         <p>Status: {node.generationStatus}</p>
-        <button disabled type="button">
-          Mark learned (coming in Task 10)
+        <button
+          disabled={isUpdatingLearned || node.learnedStatus === "learned"}
+          onClick={() => updateLearnedStatus(`/api/nodes/${node.id}/learned`)}
+          type="button"
+        >
+          {node.learnedStatus === "learned" ? "Learned" : "Mark learned"}
         </button>
 
         {node.summary ? <p style={{ fontWeight: 600 }}>{node.summary}</p> : null}
@@ -215,8 +244,12 @@ export function NodeDetailView({ node, source, knowledgePoints, branchNodes, mod
                 <p>{point.summary}</p>
                 {point.content ? <p style={{ whiteSpace: "pre-wrap" }}>{point.content}</p> : null}
                 <p>Status: {point.learnedStatus}</p>
-                <button disabled type="button">
-                  Mark point learned (coming in Task 10)
+                <button
+                  disabled={isUpdatingLearned || point.learnedStatus === "learned"}
+                  onClick={() => updateLearnedStatus(`/api/knowledge-points/${point.id}/learned`)}
+                  type="button"
+                >
+                  {point.learnedStatus === "learned" ? "Point learned" : "Mark point learned"}
                 </button>{" "}
                 <button
                   disabled={isStartingAi || modelConfigs.length === 0}
