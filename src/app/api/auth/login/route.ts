@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getSessionCookieOptions } from "@/lib/auth/cookies";
 import { sessionCookieName } from "@/lib/auth/current-user";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSessionToken } from "@/lib/auth/session";
@@ -12,14 +13,6 @@ const authSchema = z.object({
   ),
   password: z.string().min(8).max(200)
 });
-
-const sessionCookieOptions = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
-  path: "/",
-  maxAge: 60 * 60 * 24 * 30
-};
 
 async function readJson(request: Request) {
   try {
@@ -48,7 +41,7 @@ export async function POST(request: Request) {
 
   const token = await createSessionToken(user.id);
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(sessionCookieName, token, sessionCookieOptions);
+  response.cookies.set(sessionCookieName, token, getSessionCookieOptions(60 * 60 * 24 * 30));
 
   return response;
 }
