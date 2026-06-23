@@ -17,6 +17,12 @@ describe("session cookie options", () => {
   it("uses secure cookies in production by default", () => {
     vi.stubEnv("NODE_ENV", "production");
 
+    expect(shouldUseSecureSessionCookie()).toBe(false);
+  });
+
+  it("uses secure cookies only when explicitly enabled", () => {
+    vi.stubEnv("SESSION_COOKIE_SECURE", "true");
+
     expect(shouldUseSecureSessionCookie()).toBe(true);
   });
 });

@@ -3,7 +3,10 @@ import { getSessionCookieOptions } from "@/lib/auth/cookies";
 import { sessionCookieName } from "@/lib/auth/current-user";
 
 function redirectToLogin(request: Request) {
-  const response = NextResponse.redirect(new URL("/login", request.url), 303);
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") ?? new URL(request.url).protocol.replace(":", "");
+  const origin = host ? `${proto}://${host}` : new URL(request.url).origin;
+  const response = NextResponse.redirect(new URL("/login", origin), 303);
   response.cookies.set(sessionCookieName, "", getSessionCookieOptions(0));
 
   return response;
