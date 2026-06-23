@@ -14,7 +14,8 @@ const db = vi.hoisted(() => ({
   },
   modelProviderConfig: {
     findFirstOrThrow: vi.fn()
-  }
+  },
+  $transaction: vi.fn()
 }));
 
 const crypto = vi.hoisted(() => ({
@@ -38,6 +39,8 @@ describe("runInitialParse", () => {
     db.learningNode.findFirstOrThrow.mockReset();
     db.learningNode.update.mockReset();
     db.modelProviderConfig.findFirstOrThrow.mockReset();
+    db.$transaction.mockReset();
+    db.$transaction.mockImplementation((callback) => callback(db));
     crypto.decryptModelKey.mockClear();
     vi.unstubAllEnvs();
 
@@ -143,6 +146,7 @@ describe("runInitialParse", () => {
         outputPayload: expect.objectContaining({ title: "React State" })
       }
     });
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
     expect(result.title).toBe("React State");
   });
 
@@ -217,6 +221,67 @@ describe("runInitialParse", () => {
       }
     });
   });
+
+  it("still marks the generation as failed when the node failure update fails", async () => {
+    db.aiGeneration.create.mockResolvedValue({ id: "generation_1" });
+    db.learningNode.findFirstOrThrow.mockResolvedValue({
+      id: "node_1",
+      title: "React State",
+      source: { type: "question", title: "React State" }
+    });
+    db.modelProviderConfig.findFirstOrThrow.mockResolvedValue({
+      id: "config_1",
+      kind: "user_key",
+      provider: "openai-compatible",
+      baseUrl: "https://models.example/v1",
+      modelName: "gpt-test",
+      encryptedApiKey: "ciphertext"
+    });
+    completeJson.mockRejectedValue(new Error("provider failed"));
+    db.learningNode.update.mockRejectedValue(new Error("node update failed"));
+
+    const { runInitialParse } = await import("./generation-service");
+    await expect(runInitialParse("user_1", "node_1", "config_1")).rejects.toThrow("provider failed");
+
+    expect(db.aiGeneration.update).toHaveBeenCalledWith({
+      where: { id: "generation_1" },
+      data: {
+        status: "failed",
+        errorMessage: "provider failed"
+      }
+    });
+  });
+
+  it("redacts the resolved API key from generation errors", async () => {
+    db.aiGeneration.create.mockResolvedValue({ id: "generation_1" });
+    db.learningNode.findFirstOrThrow.mockResolvedValue({
+      id: "node_1",
+      title: "React State",
+      source: { type: "question", title: "React State" }
+    });
+    db.modelProviderConfig.findFirstOrThrow.mockResolvedValue({
+      id: "config_1",
+      kind: "user_key",
+      provider: "openai-compatible",
+      baseUrl: "https://models.example/v1",
+      modelName: "gpt-test",
+      encryptedApiKey: "ciphertext"
+    });
+    completeJson.mockRejectedValue(new Error("provider failed with Bearer decrypted:ciphertext"));
+
+    const { runInitialParse } = await import("./generation-service");
+    await expect(runInitialParse("user_1", "node_1", "config_1")).rejects.toThrow(
+      "provider failed with Bearer [redacted]"
+    );
+
+    expect(db.aiGeneration.update).toHaveBeenCalledWith({
+      where: { id: "generation_1" },
+      data: {
+        status: "failed",
+        errorMessage: "provider failed with Bearer [redacted]"
+      }
+    });
+  });
 });
 
 describe("OpenAiCompatibleProvider", () => {
@@ -273,5 +338,36 @@ describe("OpenAiCompatibleProvider", () => {
         messages: [{ role: "user", content: "Return JSON" }]
       })
     ).rejects.toThrow("AI provider request failed with status 401");
+  });
+
+  it("rejects non-https base urls", async () => {
+    const { OpenAiCompatibleProvider } = await import("./openai-compatible");
+
+    expect(() =>
+      new OpenAiCompatibleProvider({
+        baseUrl: "http://models.example/v1",
+        apiKey: "sk-test"
+      })
+    ).toThrow("AI provider base URL must use HTTPS");
+  });
+
+  it("throws a clear error when the provider response is not JSON", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockRejectedValue(new Error("Unexpected token"))
+    });
+    const { OpenAiCompatibleProvider } = await import("./openai-compatible");
+    const provider = new OpenAiCompatibleProvider({
+      baseUrl: "https://models.example/v1",
+      apiKey: "sk-test",
+      fetcher
+    });
+
+    await expect(
+      provider.completeJson({
+        model: "gpt-test",
+        messages: [{ role: "user", content: "Return JSON" }]
+      })
+    ).rejects.toThrow("AI provider response was not valid JSON");
   });
 });

@@ -19,16 +19,34 @@ function requiredEnv(name: string) {
   return value;
 }
 
-function redactSecrets(message: string) {
-  return message.replace(/sk-[A-Za-z0-9_-]+/g, "[redacted]");
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function getErrorMessage(error: unknown) {
+function redactSecrets(message: string, apiKey?: string) {
+  let redacted = message.replace(/Bearer\s+[^\s]+/g, "Bearer [redacted]");
+
+  if (apiKey) {
+    redacted = redacted.replace(new RegExp(escapeRegExp(apiKey), "g"), "[redacted]");
+  }
+
+  return redacted.replace(/sk-[A-Za-z0-9_-]+/g, "[redacted]");
+}
+
+function getErrorMessage(error: unknown, apiKey?: string) {
   if (error instanceof Error) {
-    return redactSecrets(error.message);
+    return redactSecrets(error.message, apiKey);
   }
 
   return "AI generation failed";
+}
+
+async function ignoreFailure(action: () => unknown) {
+  try {
+    await action();
+  } catch {
+    // Keep the original AI generation error as the one callers see.
+  }
 }
 
 function resolveModel(config: ModelProviderConfig): ResolvedModel {
@@ -56,6 +74,7 @@ function resolveModel(config: ModelProviderConfig): ResolvedModel {
 }
 
 export async function runInitialParse(userId: string, nodeId: string, modelConfigId: string) {
+  let resolvedApiKey: string | undefined;
   const generation = await db.aiGeneration.create({
     data: {
       userId,
@@ -75,6 +94,7 @@ export async function runInitialParse(userId: string, nodeId: string, modelConfi
       where: { id: modelConfigId, userId, isEnabled: true }
     });
     const resolvedModel = resolveModel(config);
+    resolvedApiKey = resolvedModel.apiKey;
     const provider = new OpenAiCompatibleProvider({
       baseUrl: resolvedModel.baseUrl,
       apiKey: resolvedModel.apiKey
@@ -85,52 +105,58 @@ export async function runInitialParse(userId: string, nodeId: string, modelConfi
     });
     const output = parseLearningJson(rawOutput);
 
-    await db.learningNode.update({
-      where: { id_userId: { id: nodeId, userId } },
-      data: {
-        title: output.title,
-        summary: output.summary,
-        content: output.content,
-        generationStatus: "completed",
-        modelUsed: resolvedModel.model
-      }
-    });
+    await db.$transaction(async (tx) => {
+      await tx.learningNode.update({
+        where: { id_userId: { id: nodeId, userId } },
+        data: {
+          title: output.title,
+          summary: output.summary,
+          content: output.content,
+          generationStatus: "completed",
+          modelUsed: resolvedModel.model
+        }
+      });
 
-    await db.knowledgePoint.createMany({
-      data: output.knowledgePoints.map((point, orderIndex) => ({
-        userId,
-        nodeId,
-        title: point.title,
-        summary: point.summary,
-        content: point.content,
-        orderIndex
-      }))
-    });
+      await tx.knowledgePoint.createMany({
+        data: output.knowledgePoints.map((point, orderIndex) => ({
+          userId,
+          nodeId,
+          title: point.title,
+          summary: point.summary,
+          content: point.content,
+          orderIndex
+        }))
+      });
 
-    await db.aiGeneration.update({
-      where: { id: generation.id },
-      data: {
-        status: "completed",
-        rawOutput,
-        outputPayload: output
-      }
+      await tx.aiGeneration.update({
+        where: { id: generation.id },
+        data: {
+          status: "completed",
+          rawOutput,
+          outputPayload: output
+        }
+      });
     });
 
     return output;
   } catch (error) {
-    const errorMessage = getErrorMessage(error);
+    const errorMessage = getErrorMessage(error, resolvedApiKey);
 
-    await db.learningNode.update({
-      where: { id_userId: { id: nodeId, userId } },
-      data: { generationStatus: "failed" }
-    });
-    await db.aiGeneration.update({
-      where: { id: generation.id },
-      data: {
-        status: "failed",
-        errorMessage
-      }
-    });
+    await ignoreFailure(() =>
+      db.learningNode.update({
+        where: { id_userId: { id: nodeId, userId } },
+        data: { generationStatus: "failed" }
+      })
+    );
+    await ignoreFailure(() =>
+      db.aiGeneration.update({
+        where: { id: generation.id },
+        data: {
+          status: "failed",
+          errorMessage
+        }
+      })
+    );
 
     throw new Error(errorMessage);
   }
