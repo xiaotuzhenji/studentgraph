@@ -3,7 +3,7 @@ export type NodePosition = {
   y: number;
 };
 
-const childHorizontalOffset = 380;
+const childHorizontalOffset = 360;
 const childVerticalOffset = 140;
 
 export function positionChildNode(parent: NodePosition, siblingIndex: number): NodePosition {
