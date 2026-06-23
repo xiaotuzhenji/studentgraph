@@ -28,25 +28,41 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ display: "grid", minHeight: "100vh", placeItems: "center", padding: "2rem" }}>
-      <section style={{ width: "100%", maxWidth: 420, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius)", boxShadow: "var(--shadow)", padding: "2rem" }}>
-        <h1 style={{ marginTop: 0 }}>登录知枝</h1>
-        <p style={{ color: "var(--muted)", marginTop: "-0.25rem" }}>像 diagrams.net 一样，先进入画布再开始整理知识。</p>
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: "1rem" }}>
-          <label style={{ display: "grid", gap: "0.35rem" }}>
-            邮箱
-            <input name="email" type="email" autoComplete="email" required />
-          </label>
-          <label style={{ display: "grid", gap: "0.35rem" }}>
-            密码
-            <input name="password" type="password" autoComplete="current-password" minLength={8} required />
-          </label>
-          {error ? <p role="alert" style={{ color: "#b42318", margin: 0 }}>{error}</p> : null}
-          <button type="submit">登录</button>
-        </form>
-        <p style={{ color: "var(--muted)", marginBottom: 0 }}>
-          还没有账号？<a href="/register">去注册</a>
-        </p>
+    <main className="auth-page">
+      <section className="auth-layout">
+        <aside className="auth-hero card">
+          <span className="auth-kicker">知枝</span>
+          <h1>把问题变成一张会生长的学习图谱。</h1>
+          <p className="lead">输入一个问题、链接、项目或书籍，AI 会帮你拆解、展开、提问，并沉淀成个人知识库。</p>
+          <div className="auth-points">
+            <span>无线画布</span>
+            <span>AI 拆解</span>
+            <span>笔记分支</span>
+            <span>知识库沉淀</span>
+          </div>
+        </aside>
+
+        <section className="auth-panel card">
+          <div className="auth-panel-head">
+            <h2>登录知枝</h2>
+            <p>继续你的学习图谱。</p>
+          </div>
+          <form onSubmit={handleSubmit} className="auth-form">
+            <label className="field auth-field">
+              <span>邮箱</span>
+              <input name="email" type="email" autoComplete="email" placeholder="name@example.com" required />
+            </label>
+            <label className="field auth-field">
+              <span>密码</span>
+              <input name="password" type="password" autoComplete="current-password" minLength={8} placeholder="输入密码" required />
+            </label>
+            {error ? <p role="alert" className="auth-error">{error}</p> : null}
+            <button type="submit" className="btn btn-primary auth-submit">登录</button>
+          </form>
+          <p className="auth-footnote">
+            还没有账号？<a href="/register">去注册</a>
+          </p>
+        </section>
       </section>
     </main>
   );
