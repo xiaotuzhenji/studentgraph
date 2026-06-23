@@ -31,7 +31,13 @@ export default function LoginPage() {
     <main className="auth-page">
       <section className="auth-card card">
         <div className="auth-card-head">
-          <span className="auth-kicker">知枝</span>
+          <a href="/canvas" className="auth-brand" aria-label="知枝">
+            <span className="auth-brand-mark">知</span>
+            <span className="auth-brand-copy">
+              <strong>知枝</strong>
+              <span>AI 学习画布</span>
+            </span>
+          </a>
           <h1>登录知枝</h1>
           <p className="lead">进入你的学习画布，继续把内容展开成知识图谱。</p>
         </div>
