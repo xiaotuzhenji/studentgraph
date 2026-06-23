@@ -61,6 +61,12 @@ export async function createAiBranch(userId: string, nodeId: string, input: AiBr
     where: { id: input.modelConfigId, userId, isEnabled: true },
     select: { id: true }
   });
+  if (input.sourceKnowledgePointId) {
+    await db.knowledgePoint.findFirstOrThrow({
+      where: { id: input.sourceKnowledgePointId, userId, nodeId: parent.id },
+      select: { id: true }
+    });
+  }
   const siblingCount = await db.learningNode.count({
     where: { parentId: nodeId, userId, deletedAt: null }
   });
@@ -83,7 +89,11 @@ export async function createAiBranch(userId: string, nodeId: string, input: AiBr
     }
   });
 
-  await runBranchGeneration(userId, child.id, input.modelConfigId, input);
+  try {
+    await runBranchGeneration(userId, child.id, input.modelConfigId, input);
+  } catch {
+    // Branch creation succeeded; generation-service records the failed AI state.
+  }
 
   return child;
 }

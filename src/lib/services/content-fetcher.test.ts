@@ -18,6 +18,7 @@ describe("fetchSourceContent", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
+        headers: new Headers(),
         text: () =>
           Promise.resolve(`
             <html>
@@ -50,6 +51,32 @@ describe("fetchSourceContent", () => {
 
     await expect(
       fetchSourceContent({ type: "project_link", title: "Project", url: "https://example.com" })
+    ).resolves.toEqual({ status: "failed" });
+  });
+
+  it("blocks localhost and private network URLs", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      fetchSourceContent({ type: "blog_link", title: "Internal", url: "http://127.0.0.1:3000/admin" })
+    ).resolves.toEqual({ status: "failed" });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("limits fetched content size", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-length": "2000000" }),
+        text: () => Promise.resolve("<html><body>too large</body></html>")
+      })
+    );
+
+    await expect(
+      fetchSourceContent({ type: "blog_link", title: "Large", url: "https://example.com/large" })
     ).resolves.toEqual({ status: "failed" });
   });
 });

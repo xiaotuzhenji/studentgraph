@@ -9,6 +9,9 @@ const db = vi.hoisted(() => ({
   },
   modelProviderConfig: {
     findFirstOrThrow: vi.fn()
+  },
+  knowledgePoint: {
+    findFirstOrThrow: vi.fn()
   }
 }));
 
@@ -110,6 +113,7 @@ describe("createAiBranch", () => {
     db.learningNode.create.mockReset();
     db.learningNode.findFirstOrThrow.mockReset();
     db.modelProviderConfig.findFirstOrThrow.mockReset();
+    db.knowledgePoint.findFirstOrThrow.mockReset();
     generationService.runBranchGeneration.mockReset();
   });
 
@@ -125,6 +129,7 @@ describe("createAiBranch", () => {
     });
     db.learningNode.count.mockResolvedValue(0);
     db.modelProviderConfig.findFirstOrThrow.mockResolvedValue({ id: "config_1" });
+    db.knowledgePoint.findFirstOrThrow.mockResolvedValue({ id: "kp_1" });
     db.learningNode.create.mockResolvedValue({ id: "child_1" });
 
     const input = {
@@ -139,6 +144,10 @@ describe("createAiBranch", () => {
 
     expect(db.modelProviderConfig.findFirstOrThrow).toHaveBeenCalledWith({
       where: { id: "config_1", userId: "user_1", isEnabled: true },
+      select: { id: true }
+    });
+    expect(db.knowledgePoint.findFirstOrThrow).toHaveBeenCalledWith({
+      where: { id: "kp_1", userId: "user_1", nodeId: "parent_1" },
       select: { id: true }
     });
     expect(db.learningNode.create).toHaveBeenCalledWith({
@@ -183,5 +192,55 @@ describe("createAiBranch", () => {
 
     expect(db.learningNode.create).not.toHaveBeenCalled();
     expect(generationService.runBranchGeneration).not.toHaveBeenCalled();
+  });
+
+  it("rejects a source knowledge point from a different parent node", async () => {
+    db.learningNode.findFirstOrThrow.mockResolvedValue({
+      id: "parent_1",
+      userId: "user_1",
+      canvasId: "canvas_1",
+      sourceId: "source_1",
+      title: "React Hooks",
+      x: 0,
+      y: 0
+    });
+    db.modelProviderConfig.findFirstOrThrow.mockResolvedValue({ id: "config_1" });
+    db.knowledgePoint.findFirstOrThrow.mockRejectedValue(new Error("point not found"));
+
+    const { createAiBranch } = await import("./node-service");
+    await expect(
+      createAiBranch("user_1", "parent_1", {
+        kind: "explanation",
+        modelConfigId: "config_1",
+        sourceKnowledgePointId: "other_node_point"
+      })
+    ).rejects.toThrow("point not found");
+
+    expect(db.learningNode.create).not.toHaveBeenCalled();
+    expect(generationService.runBranchGeneration).not.toHaveBeenCalled();
+  });
+
+  it("returns the child branch when generation fails", async () => {
+    db.learningNode.findFirstOrThrow.mockResolvedValue({
+      id: "parent_1",
+      userId: "user_1",
+      canvasId: "canvas_1",
+      sourceId: "source_1",
+      title: "React Hooks",
+      x: 0,
+      y: 0
+    });
+    db.learningNode.count.mockResolvedValue(0);
+    db.modelProviderConfig.findFirstOrThrow.mockResolvedValue({ id: "config_1" });
+    db.learningNode.create.mockResolvedValue({ id: "child_1", generationStatus: "pending" });
+    generationService.runBranchGeneration.mockRejectedValue(new Error("model unavailable"));
+
+    const { createAiBranch } = await import("./node-service");
+    const child = await createAiBranch("user_1", "parent_1", {
+      kind: "explanation",
+      modelConfigId: "config_1"
+    });
+
+    expect(child).toEqual({ id: "child_1", generationStatus: "pending" });
   });
 });
