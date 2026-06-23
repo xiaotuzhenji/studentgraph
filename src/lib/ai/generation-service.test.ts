@@ -8,6 +8,9 @@ const db = vi.hoisted(() => ({
   knowledgePoint: {
     createMany: vi.fn()
   },
+  knowledgeRecord: {
+    findMany: vi.fn()
+  },
   learningNode: {
     findFirstOrThrow: vi.fn(),
     update: vi.fn()
@@ -36,6 +39,8 @@ describe("runInitialParse", () => {
     db.aiGeneration.create.mockReset();
     db.aiGeneration.update.mockReset();
     db.knowledgePoint.createMany.mockReset();
+    db.knowledgeRecord.findMany.mockReset();
+    db.knowledgeRecord.findMany.mockResolvedValue([]);
     db.learningNode.findFirstOrThrow.mockReset();
     db.learningNode.update.mockReset();
     db.modelProviderConfig.findFirstOrThrow.mockReset();
@@ -118,6 +123,10 @@ describe("runInitialParse", () => {
         modelUsed: "gpt-test"
       }
     });
+    expect(db.knowledgeRecord.findMany).toHaveBeenCalledWith({
+      where: { userId: "user_1", isActive: true },
+      select: { id: true, title: true }
+    });
     expect(db.knowledgePoint.createMany).toHaveBeenCalledWith({
       data: [
         {
@@ -148,6 +157,61 @@ describe("runInitialParse", () => {
     });
     expect(db.$transaction).toHaveBeenCalledTimes(1);
     expect(result.title).toBe("React State");
+  });
+
+  it("links generated knowledge points to matching learned records", async () => {
+    db.aiGeneration.create.mockResolvedValue({ id: "generation_1" });
+    db.learningNode.findFirstOrThrow.mockResolvedValue({
+      id: "node_1",
+      userId: "user_1",
+      sourceId: "source_1",
+      title: "React State",
+      source: {
+        type: "question",
+        title: "React State",
+        description: "How state changes UI",
+        learningGoal: null,
+        rawInput: null,
+        fetchedContent: null
+      }
+    });
+    db.modelProviderConfig.findFirstOrThrow.mockResolvedValue({
+      id: "config_1",
+      userId: "user_1",
+      kind: "user_key",
+      provider: "openai-compatible",
+      baseUrl: "https://models.example/v1",
+      modelName: "gpt-test",
+      encryptedApiKey: "ciphertext",
+      isEnabled: true
+    });
+    db.knowledgeRecord.findMany.mockResolvedValue([{ id: "record_1", title: "useState" }]);
+    completeJson.mockResolvedValue(
+      JSON.stringify({
+        title: "React State",
+        summary: "How state changes UI",
+        content: "State lets components remember values.",
+        knowledgePoints: [{ title: "useState", summary: "Local component state" }]
+      })
+    );
+
+    const { runInitialParse } = await import("./generation-service");
+    await runInitialParse("user_1", "node_1", "config_1");
+
+    expect(db.knowledgePoint.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          userId: "user_1",
+          nodeId: "node_1",
+          title: "useState",
+          summary: "Local component state",
+          content: undefined,
+          orderIndex: 0,
+          matchedKnowledgeRecordId: "record_1",
+          matchConfidence: 1
+        }
+      ]
+    });
   });
 
   it("uses platform environment configuration without decrypting user keys", async () => {
@@ -183,6 +247,41 @@ describe("runInitialParse", () => {
     expect(crypto.decryptModelKey).not.toHaveBeenCalled();
     expect(completeJson).toHaveBeenCalledWith({
       model: "platform-model",
+      messages: expect.any(Array)
+    });
+  });
+
+  it("supports DeepSeek user configs with the default DeepSeek base URL", async () => {
+    db.aiGeneration.create.mockResolvedValue({ id: "generation_1" });
+    db.learningNode.findFirstOrThrow.mockResolvedValue({
+      id: "node_1",
+      title: "Java",
+      source: { type: "question", title: "Java" }
+    });
+    db.modelProviderConfig.findFirstOrThrow.mockResolvedValue({
+      id: "config_1",
+      kind: "user_key",
+      provider: "DeepSeek",
+      baseUrl: null,
+      modelName: "deepseek-chat",
+      encryptedApiKey: "ciphertext"
+    });
+    completeJson.mockResolvedValue(
+      JSON.stringify({
+        title: "Java",
+        summary: "Java basics",
+        content: "Java is a programming language.",
+        knowledgePoints: [{ title: "JVM", summary: "Runs Java bytecode" }]
+      })
+    );
+
+    const providerSpy = vi.spyOn((await import("./openai-compatible")).OpenAiCompatibleProvider.prototype, "completeJson");
+    const { runInitialParse } = await import("./generation-service");
+    await runInitialParse("user_1", "node_1", "config_1");
+
+    expect(crypto.decryptModelKey).toHaveBeenCalledWith("ciphertext");
+    expect(providerSpy).toHaveBeenCalledWith({
+      model: "deepseek-chat",
       messages: expect.any(Array)
     });
   });

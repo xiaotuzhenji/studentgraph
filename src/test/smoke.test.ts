@@ -8,9 +8,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("HomePage", () => {
-  it("redirects to the canvas", () => {
+  it("redirects to login", () => {
     HomePage();
 
-    expect(redirect).toHaveBeenCalledWith("/canvas");
+    expect(redirect).toHaveBeenCalledWith("/login");
   });
 });

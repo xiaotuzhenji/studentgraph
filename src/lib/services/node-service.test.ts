@@ -4,8 +4,10 @@ const db = vi.hoisted(() => ({
   learningNode: {
     count: vi.fn(),
     create: vi.fn(),
+    findMany: vi.fn(),
     findFirst: vi.fn(),
-    findFirstOrThrow: vi.fn()
+    findFirstOrThrow: vi.fn(),
+    updateMany: vi.fn()
   },
   modelProviderConfig: {
     findFirstOrThrow: vi.fn()
@@ -51,7 +53,14 @@ describe("getNodeDetail", () => {
       where: { id: "node_1", userId: "user_1", deletedAt: null },
       include: {
         source: true,
-        knowledgePoints: { orderBy: { orderIndex: "asc" } },
+        knowledgePoints: {
+          include: {
+            matchedKnowledgeRecord: {
+              select: { id: true, title: true, summary: true, sourceNodeId: true }
+            }
+          },
+          orderBy: { orderIndex: "asc" }
+        },
         children: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } }
       }
     });
@@ -100,9 +109,46 @@ describe("createNoteBranch", () => {
         title: "Note: React Hooks",
         content: "Indexes trade write cost for faster reads.",
         x: 370,
-        y: 300,
+        y: 400,
         generationStatus: "completed"
       }
+    });
+  });
+});
+
+describe("deleteNodeBranch", () => {
+  beforeEach(() => {
+    db.learningNode.findFirstOrThrow.mockReset();
+    db.learningNode.findMany.mockReset();
+    db.learningNode.updateMany.mockReset();
+  });
+
+  it("soft deletes the selected node and its child branch nodes", async () => {
+    db.learningNode.findFirstOrThrow.mockResolvedValue({ id: "parent_1" });
+    db.learningNode.findMany
+      .mockResolvedValueOnce([{ id: "child_1" }, { id: "child_2" }])
+      .mockResolvedValueOnce([{ id: "grandchild_1" }])
+      .mockResolvedValueOnce([]);
+    db.learningNode.updateMany.mockResolvedValue({ count: 4 });
+
+    const { deleteNodeBranch } = await import("./node-service");
+    await deleteNodeBranch("user_1", "parent_1");
+
+    expect(db.learningNode.findFirstOrThrow).toHaveBeenCalledWith({
+      where: { id: "parent_1", userId: "user_1", deletedAt: null },
+      select: { id: true }
+    });
+    expect(db.learningNode.findMany).toHaveBeenNthCalledWith(1, {
+      where: { parentId: { in: ["parent_1"] }, userId: "user_1", deletedAt: null },
+      select: { id: true }
+    });
+    expect(db.learningNode.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ["parent_1", "child_1", "child_2", "grandchild_1"] },
+        userId: "user_1",
+        deletedAt: null
+      },
+      data: { deletedAt: expect.any(Date) }
     });
   });
 });

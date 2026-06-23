@@ -12,21 +12,24 @@ describe("ModelConfigForm", () => {
 
     render(<ModelConfigForm />);
 
-    fireEvent.change(screen.getByLabelText("Provider"), {
-      target: { value: "openai-compatible" }
+    fireEvent.change(screen.getByLabelText("提供方"), {
+      target: { value: "deepseek" }
     });
-    fireEvent.change(screen.getByLabelText("Display name"), {
+    fireEvent.change(screen.getByLabelText("显示名称"), {
       target: { value: "Study model" }
     });
-    fireEvent.change(screen.getByLabelText("Model name"), {
-      target: { value: "gpt-test" }
+    fireEvent.change(screen.getByLabelText("API 地址"), {
+      target: { value: "https://api.deepseek.com" }
     });
-    fireEvent.change(screen.getByLabelText("API key"), {
+    fireEvent.change(screen.getByLabelText("模型名称"), {
+      target: { value: "deepseek-chat" }
+    });
+    fireEvent.change(screen.getByLabelText("API 密钥"), {
       target: { value: "sk-test" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+    fireEvent.click(screen.getByRole("button", { name: "添加模型" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not save model config.");
-    await waitFor(() => expect(screen.getByRole("button", { name: "Add model" })).toBeEnabled());
+    expect(await screen.findByRole("alert")).toHaveTextContent("保存模型配置失败。");
+    await waitFor(() => expect(screen.getByRole("button", { name: "添加模型" })).toBeEnabled());
   });
 });

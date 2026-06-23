@@ -2,7 +2,7 @@ import coreWebVitals from "eslint-config-next/core-web-vitals";
 import typescript from "eslint-config-next/typescript";
 
 const eslintConfig = [
-  { ignores: ["test-results/**", "playwright-report/**"] },
+  { ignores: [".next/**", ".worktrees/**", "test-results/**", "playwright-report/**"] },
   ...coreWebVitals,
   ...typescript
 ];

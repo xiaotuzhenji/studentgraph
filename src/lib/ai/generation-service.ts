@@ -1,6 +1,7 @@
 import type { ModelProviderConfig } from "@prisma/client";
 import { decryptModelKey } from "@/lib/crypto/model-key";
 import { db } from "@/lib/db";
+import { titlesMatch } from "@/lib/services/knowledge-service";
 import { OpenAiCompatibleProvider } from "./openai-compatible";
 import {
   buildExpansionMessages,
@@ -13,6 +14,10 @@ type ResolvedModel = {
   baseUrl: string;
   apiKey: string;
   model: string;
+};
+
+const defaultProviderBaseUrls: Record<string, string> = {
+  deepseek: "https://api.deepseek.com"
 };
 
 type BranchGenerationInput = {
@@ -61,7 +66,9 @@ async function ignoreFailure(action: () => unknown) {
 }
 
 function resolveModel(config: ModelProviderConfig): ResolvedModel {
-  if (config.provider !== "openai-compatible") {
+  const provider = config.provider.trim().toLowerCase();
+
+  if (provider !== "openai-compatible" && provider !== "deepseek") {
     throw new Error(`Unsupported AI provider: ${config.provider}`);
   }
 
@@ -78,7 +85,7 @@ function resolveModel(config: ModelProviderConfig): ResolvedModel {
   }
 
   return {
-    baseUrl: config.baseUrl ?? requiredEnv("PLATFORM_OPENAI_COMPATIBLE_BASE_URL"),
+    baseUrl: config.baseUrl ?? defaultProviderBaseUrls[provider] ?? requiredEnv("PLATFORM_OPENAI_COMPATIBLE_BASE_URL"),
     apiKey: decryptModelKey(config.encryptedApiKey),
     model: config.modelName
   };
@@ -94,6 +101,11 @@ async function persistLearningOutput(input: {
   const output = parseLearningJson(input.rawOutput);
 
   await db.$transaction(async (tx) => {
+    const learnedRecords = await tx.knowledgeRecord.findMany({
+      where: { userId: input.userId, isActive: true },
+      select: { id: true, title: true }
+    });
+
     await tx.learningNode.update({
       where: { id_userId: { id: input.nodeId, userId: input.userId } },
       data: {
@@ -106,14 +118,24 @@ async function persistLearningOutput(input: {
     });
 
     await tx.knowledgePoint.createMany({
-      data: output.knowledgePoints.map((point, orderIndex) => ({
-        userId: input.userId,
-        nodeId: input.nodeId,
-        title: point.title,
-        summary: point.summary,
-        content: point.content,
-        orderIndex
-      }))
+      data: output.knowledgePoints.map((point, orderIndex) => {
+        const matchedRecord = learnedRecords.find((record) => titlesMatch(record.title, point.title));
+
+        return {
+          userId: input.userId,
+          nodeId: input.nodeId,
+          title: point.title,
+          summary: point.summary,
+          content: point.content,
+          orderIndex,
+          ...(matchedRecord
+            ? {
+                matchedKnowledgeRecordId: matchedRecord.id,
+                matchConfidence: 1
+              }
+            : {})
+        };
+      })
     });
 
     await tx.aiGeneration.update({
@@ -229,7 +251,7 @@ export async function runBranchGeneration(
     const messages =
       input.kind === "question"
         ? buildQuestionMessages(parent, input.selectedText ?? node.selectedText)
-        : buildExpansionMessages(parent, node.sourceKnowledgePoint ?? node);
+        : buildExpansionMessages(parent, node.sourceKnowledgePoint ?? node, input.selectedText ?? node.selectedText);
     const rawOutput = await provider.completeJson({
       model: resolvedModel.model,
       messages

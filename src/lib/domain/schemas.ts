@@ -9,7 +9,8 @@ export const createSourceSchema = z.object({
   description: z.string().trim().max(4000).optional(),
   learningGoal: z.string().trim().max(1000).optional(),
   rawInput: z.string().trim().max(8000).optional(),
-  modelConfigId: z.string().cuid().optional()
+  modelConfigId: z.string().cuid().optional(),
+  canvasId: z.string().cuid().optional()
 });
 
 export const createBranchSchema = z.object({
@@ -23,4 +24,9 @@ export const createBranchSchema = z.object({
 
 export const learnedStatusSchema = z.object({
   learnedStatus: z.enum(learnedStatuses)
+});
+
+export const updateNodePositionSchema = z.object({
+  x: z.number().finite(),
+  y: z.number().finite()
 });

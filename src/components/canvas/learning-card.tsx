@@ -1,3 +1,5 @@
+import { Handle, Position } from "@xyflow/react";
+
 export type LearningCardData = {
   id: string;
   title: string;
@@ -5,6 +7,8 @@ export type LearningCardData = {
   summary: string | null;
   learnedStatus: string;
   generationStatus: string;
+  isSelected?: boolean;
+  isHighlighted?: boolean;
 } & Record<string, unknown>;
 
 type LearningCardProps = {
@@ -12,35 +16,33 @@ type LearningCardProps = {
 };
 
 export function LearningCard({ data }: LearningCardProps) {
+  const className = [
+    "learning-card",
+    data.isSelected ? "is-selected" : "",
+    data.isHighlighted ? "is-highlighted" : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <article
-      style={{
-        background: "white",
-        border: "1px solid #d8dee4",
-        borderRadius: "0.875rem",
-        boxShadow: "0 10px 30px rgba(15, 23, 42, 0.12)",
-        minWidth: "15rem",
-        padding: "1rem"
-      }}
+      className={className}
+      title="单击选中并拖动，双击进入详情，右击打开菜单"
     >
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
-        <span style={{ color: "#2563eb", fontSize: "0.75rem", fontWeight: 700 }}>{data.type}</span>
-        <span style={{ color: "#15803d", fontSize: "0.75rem", fontWeight: 700 }}>
-          {data.learnedStatus}
-        </span>
+      <Handle id="branch-target" position={Position.Left} style={{ opacity: 0, pointerEvents: "none" }} type="target" />
+
+      <div className="learning-card-topline">
+        <span className="learning-card-chip">{data.type}</span>
+        <span className="learning-card-chip">{data.learnedStatus}</span>
+        {data.isSelected ? <span className="learning-card-chip is-active">可拖动</span> : null}
       </div>
 
-      <h3 style={{ fontSize: "1rem", lineHeight: 1.3, margin: 0 }}>{data.title}</h3>
+      <h3 className="learning-card-title">{data.title}</h3>
 
-      {data.summary ? (
-        <p style={{ color: "#4b5563", fontSize: "0.875rem", lineHeight: 1.5, margin: "0.75rem 0 0" }}>
-          {data.summary}
-        </p>
-      ) : null}
+      {data.summary ? <p className="learning-card-summary">{data.summary}</p> : null}
 
-      <p style={{ color: "#64748b", fontSize: "0.75rem", margin: "0.75rem 0 0" }}>
-        {data.generationStatus}
-      </p>
+      <p className="learning-card-footer">{data.generationStatus}</p>
+      <Handle id="branch-source" position={Position.Right} style={{ opacity: 0, pointerEvents: "none" }} type="source" />
     </article>
   );
 }

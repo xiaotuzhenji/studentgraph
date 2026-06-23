@@ -12,6 +12,7 @@ const db = vi.hoisted(() => ({
     create: vi.fn()
   },
   learningNode: {
+    count: vi.fn(),
     create: vi.fn()
   },
   $transaction: vi.fn()
@@ -35,6 +36,7 @@ describe("createLearningSource", () => {
     db.learningCanvas.findFirst.mockReset();
     db.learningCanvas.create.mockReset();
     db.learningSource.create.mockReset();
+    db.learningNode.count.mockReset();
     db.learningNode.create.mockReset();
     db.$transaction.mockReset();
     db.$transaction.mockImplementation((callback) => callback(db));
@@ -45,6 +47,7 @@ describe("createLearningSource", () => {
   it("creates a default canvas, source, and idle root node", async () => {
     db.learningCanvas.findFirst.mockResolvedValue(null);
     db.learningCanvas.create.mockResolvedValue({ id: "canvas_1", userId: "user_1", title: "My Learning Canvas" });
+    db.learningNode.count.mockResolvedValue(0);
     db.learningSource.create.mockResolvedValue({
       id: "source_1",
       userId: "user_1",
@@ -108,6 +111,7 @@ describe("createLearningSource", () => {
 
   it("creates a source without starting generation when no model is selected", async () => {
     db.learningCanvas.findFirst.mockResolvedValue({ id: "canvas_1" });
+    db.learningNode.count.mockResolvedValue(0);
     db.learningSource.create.mockResolvedValue({ id: "source_1", title: "What is database indexing?" });
     db.learningNode.create.mockResolvedValue({
       id: "node_1",
@@ -127,9 +131,31 @@ describe("createLearningSource", () => {
     expect(generationService.runInitialParse).not.toHaveBeenCalled();
   });
 
+  it("places new root cards below existing root cards", async () => {
+    db.learningCanvas.findFirst.mockResolvedValue({ id: "canvas_1" });
+    db.learningNode.count.mockResolvedValue(2);
+    db.learningSource.create.mockResolvedValue({ id: "source_1", title: "Java 泛型" });
+    db.learningNode.create.mockResolvedValue({ id: "node_1", title: "Java 泛型", x: 0, y: 440 });
+    contentFetcher.fetchSourceContent.mockResolvedValue({ status: "idle" });
+
+    const { createLearningSource } = await import("./source-service");
+    await createLearningSource("user_1", {
+      type: "question",
+      title: "Java 泛型"
+    });
+
+    expect(db.learningNode.count).toHaveBeenCalledWith({
+      where: { canvasId: "canvas_1", userId: "user_1", parentId: null, deletedAt: null }
+    });
+    expect(db.learningNode.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ x: 0, y: 440 })
+    });
+  });
+
   it("starts initial generation when a model is selected", async () => {
     db.modelProviderConfig.findFirstOrThrow.mockResolvedValue({ id: "config_1" });
     db.learningCanvas.findFirst.mockResolvedValue({ id: "canvas_1" });
+    db.learningNode.count.mockResolvedValue(0);
     db.learningSource.create.mockResolvedValue({ id: "source_1", title: "What is database indexing?" });
     db.learningNode.create.mockResolvedValue({
       id: "node_1",
@@ -159,6 +185,7 @@ describe("createLearningSource", () => {
   it("returns the created source when initial generation fails", async () => {
     db.modelProviderConfig.findFirstOrThrow.mockResolvedValue({ id: "config_1" });
     db.learningCanvas.findFirst.mockResolvedValue({ id: "canvas_1" });
+    db.learningNode.count.mockResolvedValue(0);
     db.learningSource.create.mockResolvedValue({ id: "source_1", title: "What is database indexing?" });
     db.learningNode.create.mockResolvedValue({
       id: "node_1",
@@ -198,6 +225,7 @@ describe("createLearningSource", () => {
 
   it("stores fetched metadata for link sources", async () => {
     db.learningCanvas.findFirst.mockResolvedValue({ id: "canvas_1" });
+    db.learningNode.count.mockResolvedValue(0);
     db.learningSource.create.mockResolvedValue({ id: "source_1", title: "Fallback" });
     db.learningNode.create.mockResolvedValue({ id: "node_1", title: "Fetched Title" });
     contentFetcher.fetchSourceContent.mockResolvedValue({

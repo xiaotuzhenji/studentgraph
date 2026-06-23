@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const saveErrorMessage = "Could not save model config.";
+const saveErrorMessage = "保存模型配置失败。";
 
 export function ModelConfigForm() {
   const [error, setError] = useState("");
@@ -22,6 +22,7 @@ export function ModelConfigForm() {
         body: JSON.stringify({
           provider: formData.get("provider"),
           displayName: formData.get("displayName"),
+          baseUrl: formData.get("baseUrl"),
           modelName: formData.get("modelName"),
           apiKey: formData.get("apiKey")
         })
@@ -41,31 +42,36 @@ export function ModelConfigForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.875rem", maxWidth: "32rem" }}>
-      <label style={{ display: "grid", gap: "0.375rem" }}>
-        Provider
-        <input name="provider" required placeholder="openai-compatible" />
+    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "20px", maxWidth: "40rem" }}>
+      <label className="field">
+        <span>提供方</span>
+        <input name="provider" required placeholder="deepseek" defaultValue="deepseek" />
       </label>
 
-      <label style={{ display: "grid", gap: "0.375rem" }}>
-        Display name
-        <input name="displayName" required placeholder="My study model" />
+      <label className="field">
+        <span>显示名称</span>
+        <input name="displayName" required placeholder="DeepSeek 学习模型" />
       </label>
 
-      <label style={{ display: "grid", gap: "0.375rem" }}>
-        Model name
-        <input name="modelName" required placeholder="gpt-4.1-mini" />
+      <label className="field">
+        <span>API 地址</span>
+        <input name="baseUrl" type="url" placeholder="https://api.deepseek.com" />
       </label>
 
-      <label style={{ display: "grid", gap: "0.375rem" }}>
-        API key
+      <label className="field">
+        <span>模型名称</span>
+        <input name="modelName" required placeholder="deepseek-v4-pro" />
+      </label>
+
+      <label className="field">
+        <span>API 密钥</span>
         <input name="apiKey" required type="password" autoComplete="off" placeholder="sk-..." />
       </label>
 
       {error ? <p role="alert">{error}</p> : null}
 
-      <button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Saving..." : "Add model"}
+      <button type="submit" disabled={isSubmitting} className="btn btn-primary">
+        {isSubmitting ? "保存中..." : "添加模型"}
       </button>
     </form>
   );

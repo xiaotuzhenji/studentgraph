@@ -63,7 +63,8 @@ describe("prompt builders", () => {
   it("builds expansion and question prompts", () => {
     const expansion = buildExpansionMessages(
       { title: "React State", content: "State lets components remember values." },
-      { title: "useState", summary: "Local component state" }
+      { title: "useState", summary: "Local component state" },
+      "Explain lazy initial state."
     );
     const question = buildQuestionMessages(
       { title: "React State", content: "State lets components remember values." },
@@ -71,6 +72,7 @@ describe("prompt builders", () => {
     );
 
     expect(expansion[1].content).toContain("useState");
+    expect(expansion[1].content).toContain("Explain lazy initial state.");
     expect(question[1].content).toContain("Why does state update asynchronously?");
   });
 });

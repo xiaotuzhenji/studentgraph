@@ -18,8 +18,60 @@ export function getNodeDetail(userId: string, nodeId: string) {
     where: { id: nodeId, userId, deletedAt: null },
     include: {
       source: true,
-      knowledgePoints: { orderBy: { orderIndex: "asc" } },
+      knowledgePoints: {
+        include: {
+          matchedKnowledgeRecord: {
+            select: { id: true, title: true, summary: true, sourceNodeId: true }
+          }
+        },
+        orderBy: { orderIndex: "asc" }
+      },
       children: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } }
+    }
+  });
+}
+
+export async function deleteNodeBranch(userId: string, nodeId: string) {
+  await db.learningNode.findFirstOrThrow({
+    where: { id: nodeId, userId, deletedAt: null },
+    select: { id: true }
+  });
+
+  const branchIds = new Set([nodeId]);
+  const pendingIds = [nodeId];
+
+  while (pendingIds.length > 0) {
+    const parentIds = pendingIds.splice(0, pendingIds.length);
+    const children = await db.learningNode.findMany({
+      where: { parentId: { in: parentIds }, userId, deletedAt: null },
+      select: { id: true }
+    });
+
+    for (const child of children) {
+      if (!branchIds.has(child.id)) {
+        branchIds.add(child.id);
+        pendingIds.push(child.id);
+      }
+    }
+  }
+
+  return db.learningNode.updateMany({
+    where: { id: { in: [...branchIds] }, userId, deletedAt: null },
+    data: { deletedAt: new Date() }
+  });
+}
+
+export async function updateNodePosition(
+  userId: string,
+  nodeId: string,
+  position: { x: number; y: number }
+) {
+  return db.learningNode.updateMany({
+    where: { id: nodeId, userId, deletedAt: null },
+    data: {
+      x: position.x,
+      y: position.y,
+      hasManualPosition: true
     }
   });
 }
@@ -89,11 +141,11 @@ export async function createAiBranch(userId: string, nodeId: string, input: AiBr
     }
   });
 
-  try {
-    await runBranchGeneration(userId, child.id, input.modelConfigId, input);
-  } catch {
-    // Branch creation succeeded; generation-service records the failed AI state.
-  }
+  queueMicrotask(() => {
+    void Promise.resolve(runBranchGeneration(userId, child.id, input.modelConfigId, input)).catch(() => {
+      // Branch creation succeeded; generation-service records the failed AI state.
+    });
+  });
 
   return child;
 }

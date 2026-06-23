@@ -37,7 +37,15 @@ export default async function NodeDetailPage({ params }: { params: Promise<{ nod
           title: point.title,
           summary: point.summary,
           content: point.content,
-          learnedStatus: point.learnedStatus
+          learnedStatus: point.learnedStatus,
+          matchedKnowledgeRecord: point.matchedKnowledgeRecord
+            ? {
+                id: point.matchedKnowledgeRecord.id,
+                title: point.matchedKnowledgeRecord.title,
+                summary: point.matchedKnowledgeRecord.summary,
+                sourceNodeId: point.matchedKnowledgeRecord.sourceNodeId
+              }
+            : null
         }))}
         branchNodes={node.children.map((child) => ({
           id: child.id,

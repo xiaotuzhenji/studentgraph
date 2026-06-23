@@ -43,7 +43,7 @@ export type LearningJson = z.infer<typeof learningJsonSchema>;
 const systemMessage: AiMessage = {
   role: "system",
   content:
-    "You are StudentGraph, an AI study assistant. Return only valid JSON with title, summary, content, and knowledgePoints. Each knowledge point must include title and summary, and may include content."
+    "You are 知枝, an AI study assistant. Return only valid JSON with title, summary, content, and knowledgePoints. Each knowledge point must include title and summary, and may include content."
 };
 
 function formatField(label: string, value?: string | null) {
@@ -77,7 +77,8 @@ export function buildInitialParseMessages(source: SourcePromptInput, node: NodeP
 
 export function buildExpansionMessages(
   node: NodePromptInput,
-  knowledgePoint: KnowledgePointPromptInput
+  knowledgePoint: KnowledgePointPromptInput,
+  selectedText?: string | null
 ): AiMessage[] {
   return [
     systemMessage,
@@ -87,6 +88,7 @@ export function buildExpansionMessages(
         "Expand this knowledge point into a clear learning card.",
         formatField("Parent node title", node.title),
         formatField("Parent node content", node.content),
+        formatField("Selected text to expand", selectedText),
         formatField("Knowledge point title", knowledgePoint.title),
         formatField("Knowledge point summary", knowledgePoint.summary),
         formatField("Knowledge point content", knowledgePoint.content)

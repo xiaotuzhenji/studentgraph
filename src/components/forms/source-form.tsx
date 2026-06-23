@@ -2,14 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-const sourceTypes = [
-  { value: "question", label: "Question" },
-  { value: "blog_link", label: "Blog link" },
-  { value: "project_link", label: "Project link" },
-  { value: "book", label: "Book" }
-] as const;
-
-const saveErrorMessage = "Could not create source.";
+const saveErrorMessage = "创建学习内容失败。";
+const urlPattern = /https?:\/\/[^\s]+/i;
 
 type ModelConfigOption = {
   id: string;
@@ -17,13 +11,35 @@ type ModelConfigOption = {
   modelName: string;
 };
 
-export function SourceForm() {
-  const [type, setType] = useState<(typeof sourceTypes)[number]["value"]>("question");
+function createTitleFromPrompt(prompt: string) {
+  const firstLine = prompt.split("\n").find((line) => line.trim().length > 0)?.trim() ?? "新的学习内容";
+  return firstLine.length > 60 ? `${firstLine.slice(0, 60)}...` : firstLine;
+}
+
+function inferSourceFromPrompt(prompt: string) {
+  const url = prompt.match(urlPattern)?.[0];
+
+  return {
+    type: url?.includes("github.com") ? "project_link" : url ? "blog_link" : "question",
+    url
+  };
+}
+
+type SourceFormProps = {
+  canvasId?: string;
+};
+
+export function SourceForm({ canvasId }: SourceFormProps) {
+  return <SourceFormInner canvasId={canvasId} />;
+}
+
+function SourceFormInner({ canvasId }: SourceFormProps) {
+  const [prompt, setPrompt] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modelConfigs, setModelConfigs] = useState<ModelConfigOption[]>([]);
-  const [startAiParse, setStartAiParse] = useState(false);
   const [modelConfigId, setModelConfigId] = useState("");
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -40,7 +56,7 @@ export function SourceForm() {
           setModelConfigId(configs[0]?.id ?? "");
         }
       } catch {
-        // Model selection is optional; source creation should still work without it.
+        // 没有模型也能先创建内容
       }
     }
 
@@ -51,28 +67,51 @@ export function SourceForm() {
     };
   }, []);
 
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsModelMenuOpen(false);
+      }
+    }
+
+    function closeOnOutsideClick(event: MouseEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      const container = document.getElementById("source-model-picker");
+      if (container && !container.contains(target)) {
+        setIsModelMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+    };
+  }, []);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setIsSubmitting(true);
 
     const form = event.currentTarget;
-    const formData = new FormData(form);
-    const url = formData.get("url")?.toString().trim();
+    const trimmedPrompt = prompt.trim();
+    const inferred = inferSourceFromPrompt(trimmedPrompt);
 
     try {
       const response = await fetch("/api/sources", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type,
-          title: formData.get("title"),
-          url: url || undefined,
-          author: formData.get("author") || undefined,
-          description: formData.get("description") || undefined,
-          learningGoal: formData.get("learningGoal") || undefined,
-          rawInput: formData.get("rawInput") || undefined,
-          modelConfigId: startAiParse && modelConfigId ? modelConfigId : undefined
+          type: inferred.type,
+          title: createTitleFromPrompt(trimmedPrompt),
+          url: inferred.url,
+          description: trimmedPrompt,
+          rawInput: trimmedPrompt,
+          modelConfigId: modelConfigId || undefined,
+          canvasId
         })
       });
 
@@ -82,7 +121,7 @@ export function SourceForm() {
       }
 
       form.reset();
-      setStartAiParse(false);
+      setPrompt("");
       window.location.reload();
     } catch {
       setError(saveErrorMessage);
@@ -91,98 +130,84 @@ export function SourceForm() {
     }
   }
 
-  const needsUrl = type === "blog_link" || type === "project_link";
+  const selectedModel = modelConfigs.find((config) => config.id === modelConfigId);
+  const hasModels = modelConfigs.length > 0;
 
   return (
-    <form id="new-learning-content" onSubmit={handleSubmit} style={{ display: "grid", gap: "0.875rem", maxWidth: "32rem" }}>
-      <fieldset style={{ border: 0, display: "grid", gap: "0.5rem", padding: 0 }}>
-        <legend>Source type</legend>
-        {sourceTypes.map((sourceType) => (
-          <label key={sourceType.value} style={{ display: "flex", gap: "0.5rem" }}>
-            <input
-              checked={type === sourceType.value}
-              name="type"
-              onChange={() => setType(sourceType.value)}
-              type="radio"
-              value={sourceType.value}
-            />
-            {sourceType.label}
-          </label>
-        ))}
-      </fieldset>
-
-      <label style={{ display: "grid", gap: "0.375rem" }}>
-        Title
-        <input name="title" required />
+    <form id="new-learning-content" onSubmit={handleSubmit} style={{ display: "grid", gap: "0.55rem" }}>
+      <label className="field">
+        <span>想学什么？</span>
+        <textarea
+          name="prompt"
+          onChange={(event) => setPrompt(event.target.value)}
+          placeholder={"像聊天一样输入：\n我想系统学习 Java 泛型\n或者贴一个链接，让 AI 帮我拆成学习卡片"}
+          required
+          rows={5}
+          value={prompt}
+        />
       </label>
 
-      {needsUrl ? (
-        <label style={{ display: "grid", gap: "0.375rem" }}>
-          URL
-          <input name="url" required type="url" />
-        </label>
-      ) : null}
+      <div className="source-model-picker" id="source-model-picker">
+        <div className="source-model-picker-header">
+          <span className="source-model-label">学习模型</span>
+          <span className="source-model-hint">{hasModels ? "选择用于拆解和提问的模型" : "先去模型设置里添加一个模型"}</span>
+        </div>
 
-      {type === "book" ? (
-        <label style={{ display: "grid", gap: "0.375rem" }}>
-          Author
-          <input name="author" />
-        </label>
-      ) : null}
+        <button
+          aria-expanded={isModelMenuOpen}
+          aria-haspopup="listbox"
+          className={`source-model-trigger${isModelMenuOpen ? " is-open" : ""}`}
+          disabled={!hasModels}
+          onClick={() => setIsModelMenuOpen((value) => !value)}
+          type="button"
+        >
+          <span className="source-model-trigger-copy">
+            <span className="source-model-trigger-text">{selectedModel ? selectedModel.displayName : "请先配置模型"}</span>
+            <span className="source-model-trigger-meta">{selectedModel ? selectedModel.modelName : "未配置"}</span>
+          </span>
+          <span className="source-model-trigger-icon" aria-hidden="true">
+            ▾
+          </span>
+        </button>
 
-      <label style={{ display: "grid", gap: "0.375rem" }}>
-        Description
-        <textarea name="description" rows={3} />
-      </label>
-
-      <label style={{ display: "grid", gap: "0.375rem" }}>
-        Learning goal
-        <textarea name="learningGoal" rows={3} />
-      </label>
-
-      <label style={{ display: "grid", gap: "0.375rem" }}>
-        Notes
-        <textarea name="rawInput" rows={4} />
-      </label>
-
-      <fieldset style={{ border: "1px solid #e5e7eb", borderRadius: "0.75rem", display: "grid", gap: "0.75rem", padding: "1rem" }}>
-        <legend>AI parse</legend>
-        {modelConfigs.length === 0 ? (
-          <p style={{ margin: 0 }}>
-            Add a model in <a href="/settings/models">model settings</a> to start AI parsing from a new card.
-          </p>
-        ) : (
-          <>
-            <label style={{ display: "flex", gap: "0.5rem" }}>
-              <input
-                checked={startAiParse}
-                onChange={(event) => setStartAiParse(event.target.checked)}
-                type="checkbox"
-              />
-              Start AI parse
-            </label>
-            <label style={{ display: "grid", gap: "0.375rem" }}>
-              Learning model
-              <select
-                disabled={!startAiParse}
-                value={modelConfigId}
-                onChange={(event) => setModelConfigId(event.target.value)}
+        {isModelMenuOpen && hasModels ? (
+          <div className="source-model-menu" role="listbox" aria-label="学习模型选项">
+            <div className="source-model-menu-title">可用模型</div>
+            {modelConfigs.map((config) => (
+              <button
+                key={config.id}
+                type="button"
+                role="option"
+                aria-selected={config.id === modelConfigId}
+                className={`source-model-option${config.id === modelConfigId ? " is-selected" : ""}`}
+                onClick={() => {
+                  setModelConfigId(config.id);
+                  setIsModelMenuOpen(false);
+                }}
               >
-                {modelConfigs.map((config) => (
-                  <option key={config.id} value={config.id}>
-                    {config.displayName} ({config.modelName})
-                  </option>
-                ))}
-              </select>
-            </label>
-          </>
-        )}
-      </fieldset>
+                <strong>{config.displayName}</strong>
+                <span>{config.modelName}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       {error ? <p role="alert">{error}</p> : null}
 
-      <button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Creating..." : "Create card"}
+      {isSubmitting ? (
+        <div className="submit-progress" role="status" aria-live="polite">
+          <span>正在创建卡片，并准备 AI 拆解...</span>
+          <span className="submit-progress-bar" />
+        </div>
+      ) : null}
+
+      <button
+        type="submit"
+        disabled={isSubmitting || prompt.trim().length === 0 || modelConfigs.length === 0}
+        className={`btn btn-primary source-form-submit${isSubmitting ? " btn-loading" : ""}`}
+      >
+        {isSubmitting ? "创建中..." : "发送并创建卡片"}
       </button>
     </form>
   );

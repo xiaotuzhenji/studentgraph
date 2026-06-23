@@ -29,6 +29,7 @@ describe("model config service", () => {
         id: "config_1",
         provider: "openai-compatible",
         displayName: "Study model",
+        baseUrl: "https://models.example/v1",
         modelName: "gpt-test",
         kind: "user_key",
         isEnabled: true
@@ -45,6 +46,7 @@ describe("model config service", () => {
         id: true,
         provider: true,
         displayName: true,
+        baseUrl: true,
         modelName: true,
         kind: true,
         isEnabled: true
@@ -58,6 +60,7 @@ describe("model config service", () => {
       id: "config_1",
       provider: "openai-compatible",
       displayName: "Study model",
+      baseUrl: "https://models.example/v1",
       modelName: "gpt-test",
       kind: "user_key",
       isEnabled: true
@@ -68,6 +71,7 @@ describe("model config service", () => {
       userId: "user_1",
       provider: "openai-compatible",
       displayName: "Study model",
+      baseUrl: "https://models.example/v1",
       modelName: "gpt-test",
       apiKey: "sk-test"
     });
@@ -78,6 +82,7 @@ describe("model config service", () => {
         userId: "user_1",
         provider: "openai-compatible",
         displayName: "Study model",
+        baseUrl: "https://models.example/v1",
         modelName: "gpt-test",
         kind: "user_key",
         encryptedApiKey: "encrypted:sk-test",
@@ -87,6 +92,7 @@ describe("model config service", () => {
         id: true,
         provider: true,
         displayName: true,
+        baseUrl: true,
         modelName: true,
         kind: true,
         isEnabled: true
@@ -100,6 +106,7 @@ describe("model config service", () => {
       id: "config_1",
       provider: "openai-compatible",
       displayName: "Study model",
+      baseUrl: null,
       modelName: "gpt-test",
       kind: "user_key",
       isEnabled: false
@@ -115,6 +122,7 @@ describe("model config service", () => {
         id: true,
         provider: true,
         displayName: true,
+        baseUrl: true,
         modelName: true,
         kind: true,
         isEnabled: true

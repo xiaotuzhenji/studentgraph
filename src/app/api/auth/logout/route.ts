@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { sessionCookieName } from "@/lib/auth/current-user";
 
-export async function POST() {
-  const response = NextResponse.json({ ok: true });
+function redirectToLogin(request: Request) {
+  const response = NextResponse.redirect(new URL("/login", request.url), 303);
   response.cookies.set(sessionCookieName, "", {
     httpOnly: true,
     sameSite: "lax",
@@ -12,4 +12,12 @@ export async function POST() {
   });
 
   return response;
+}
+
+export function GET(request: Request) {
+  return redirectToLogin(request);
+}
+
+export function POST(request: Request) {
+  return redirectToLogin(request);
 }

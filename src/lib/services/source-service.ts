@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import type { z } from "zod";
 import { runInitialParse } from "@/lib/ai/generation-service";
 import { db } from "@/lib/db";
+import { positionRootNode } from "@/lib/domain/layout";
 import type { createSourceSchema } from "@/lib/domain/schemas";
 import { fetchSourceContent } from "./content-fetcher";
 
@@ -40,7 +41,16 @@ export async function createLearningSource(userId: string, input: CreateSourceIn
   const fetchedContent = fetched.status === "completed" ? fetched.content : undefined;
 
   const result = await db.$transaction(async (tx) => {
-    const canvas = await getOrCreateDefaultCanvas(tx, userId);
+    const canvas = input.canvasId
+      ? await tx.learningCanvas.findFirstOrThrow({
+          where: { id: input.canvasId, userId },
+          select: { id: true, userId: true, title: true, isDefault: true }
+        })
+      : await getOrCreateDefaultCanvas(tx, userId);
+    const rootNodeCount = await tx.learningNode.count({
+      where: { canvasId: canvas.id, userId, parentId: null, deletedAt: null }
+    });
+    const position = positionRootNode(rootNodeCount);
     const source = await tx.learningSource.create({
       data: {
         userId,
@@ -68,8 +78,8 @@ export async function createLearningSource(userId: string, input: CreateSourceIn
         summary: fetchedDescription ?? input.description ?? input.learningGoal,
         content: fetchedContent ?? input.rawInput,
         generationStatus: input.modelConfigId ? "pending" : "idle",
-        x: 0,
-        y: 0
+        x: position.x,
+        y: position.y
       }
     });
 

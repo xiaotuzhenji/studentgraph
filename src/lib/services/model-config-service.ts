@@ -5,6 +5,7 @@ const safeModelConfigSelect = {
   id: true,
   provider: true,
   displayName: true,
+  baseUrl: true,
   modelName: true,
   kind: true,
   isEnabled: true
@@ -22,6 +23,7 @@ export function createUserModelConfig(input: {
   userId: string;
   provider: string;
   displayName: string;
+  baseUrl?: string | null;
   modelName: string;
   apiKey: string;
 }) {
@@ -30,6 +32,7 @@ export function createUserModelConfig(input: {
       userId: input.userId,
       provider: input.provider,
       displayName: input.displayName,
+      baseUrl: input.baseUrl || null,
       modelName: input.modelName,
       kind: "user_key",
       encryptedApiKey: encryptModelKey(input.apiKey),

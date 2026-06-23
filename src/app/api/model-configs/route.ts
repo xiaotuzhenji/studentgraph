@@ -6,6 +6,13 @@ import { createUserModelConfig, listModelConfigs } from "@/lib/services/model-co
 const modelConfigSchema = z.object({
   provider: z.string().trim().min(1).max(80),
   displayName: z.string().trim().min(1).max(120),
+  baseUrl: z
+    .string()
+    .trim()
+    .url()
+    .max(500)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
   modelName: z.string().trim().min(1).max(120),
   apiKey: z.string().trim().min(1).max(4000)
 });
