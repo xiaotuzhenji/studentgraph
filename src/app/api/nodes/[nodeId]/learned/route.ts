@@ -3,6 +3,10 @@ import { requireCurrentUser } from "@/lib/auth/current-user";
 import { learnedStatusSchema } from "@/lib/domain/schemas";
 import { markNodeLearned } from "@/lib/services/knowledge-service";
 
+function isRecordNotFoundError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2025";
+}
+
 async function readJson(request: Request) {
   try {
     return await request.json();
@@ -25,7 +29,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ nodeI
     return NextResponse.json({ error: "Invalid learned status" }, { status: 400 });
   }
 
-  const node = await markNodeLearned(user.id, nodeId, parsed.data.learnedStatus);
+  try {
+    const node = await markNodeLearned(user.id, nodeId, parsed.data.learnedStatus);
 
-  return NextResponse.json({ node });
+    return NextResponse.json({ node });
+  } catch (error) {
+    if (isRecordNotFoundError(error)) {
+      return NextResponse.json({ error: "Node not found" }, { status: 404 });
+    }
+
+    throw error;
+  }
 }

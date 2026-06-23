@@ -1,10 +1,11 @@
-import type { LearnedStatus, KnowledgePoint, LearningNode } from "@prisma/client";
+import type { LearnedStatus, KnowledgePoint, LearningNode, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 
 type PointForMatching = {
   id: string;
   title: string;
 };
+type TransactionClient = Prisma.TransactionClient;
 
 export function normalizeKnowledgeTitle(title: string) {
   return title.trim().toLowerCase().replace(/\s+/g, " ");
@@ -15,18 +16,20 @@ export function titlesMatch(a: string, b: string) {
 }
 
 export async function markNodeLearned(userId: string, nodeId: string, learnedStatus: LearnedStatus) {
-  const node = await db.learningNode.update({
-    where: { id_userId: { id: nodeId, userId } },
-    data: { learnedStatus }
-  });
+  return db.$transaction(async (tx) => {
+    const node = await tx.learningNode.update({
+      where: { id_userId: { id: nodeId, userId } },
+      data: { learnedStatus }
+    });
 
-  if (learnedStatus !== "learned") {
-    await deactivateNodeKnowledgeRecord(userId, nodeId);
+    if (learnedStatus !== "learned") {
+      await deactivateNodeKnowledgeRecord(tx, userId, nodeId);
+      return node;
+    }
+
+    await upsertNodeKnowledgeRecord(tx, userId, node);
     return node;
-  }
-
-  await upsertNodeKnowledgeRecord(userId, node);
-  return node;
+  });
 }
 
 export async function markKnowledgePointLearned(userId: string, pointId: string, learnedStatus: LearnedStatus) {
@@ -60,9 +63,10 @@ export function listKnowledgeRecords(userId: string) {
   });
 }
 
-async function upsertNodeKnowledgeRecord(userId: string, node: LearningNode) {
-  const existing = await db.knowledgeRecord.findFirst({
-    where: { userId, sourceNodeId: node.id, recordType: "node" }
+async function upsertNodeKnowledgeRecord(tx: TransactionClient, userId: string, node: LearningNode) {
+  const records = await tx.knowledgeRecord.findMany({
+    where: { userId, sourceNodeId: node.id, recordType: "node" },
+    orderBy: { createdAt: "asc" }
   });
 
   const data = {
@@ -73,15 +77,23 @@ async function upsertNodeKnowledgeRecord(userId: string, node: LearningNode) {
     isActive: true,
     sourceNodeId: node.id
   };
+  const [existing, ...duplicates] = records;
+
+  if (duplicates.length > 0) {
+    await tx.knowledgeRecord.updateMany({
+      where: { id: { in: duplicates.map((record) => record.id) }, userId },
+      data: { isActive: false }
+    });
+  }
 
   if (existing) {
-    return db.knowledgeRecord.update({
+    return tx.knowledgeRecord.update({
       where: { id_userId: { id: existing.id, userId } },
       data
     });
   }
 
-  return db.knowledgeRecord.create({
+  return tx.knowledgeRecord.create({
     data: {
       userId,
       recordType: "node",
@@ -114,8 +126,8 @@ function upsertPointKnowledgeRecord(userId: string, point: KnowledgePoint) {
   });
 }
 
-function deactivateNodeKnowledgeRecord(userId: string, nodeId: string) {
-  return db.knowledgeRecord.updateMany({
+function deactivateNodeKnowledgeRecord(tx: TransactionClient, userId: string, nodeId: string) {
+  return tx.knowledgeRecord.updateMany({
     where: { sourceNodeId: nodeId, userId, recordType: "node" },
     data: { isActive: false }
   });

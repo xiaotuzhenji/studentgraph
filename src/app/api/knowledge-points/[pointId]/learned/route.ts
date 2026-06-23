@@ -3,6 +3,10 @@ import { requireCurrentUser } from "@/lib/auth/current-user";
 import { learnedStatusSchema } from "@/lib/domain/schemas";
 import { markKnowledgePointLearned } from "@/lib/services/knowledge-service";
 
+function isRecordNotFoundError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2025";
+}
+
 async function readJson(request: Request) {
   try {
     return await request.json();
@@ -25,7 +29,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ point
     return NextResponse.json({ error: "Invalid learned status" }, { status: 400 });
   }
 
-  const point = await markKnowledgePointLearned(user.id, pointId, parsed.data.learnedStatus);
+  try {
+    const point = await markKnowledgePointLearned(user.id, pointId, parsed.data.learnedStatus);
 
-  return NextResponse.json({ point });
+    return NextResponse.json({ point });
+  } catch (error) {
+    if (isRecordNotFoundError(error)) {
+      return NextResponse.json({ error: "Knowledge point not found" }, { status: 404 });
+    }
+
+    throw error;
+  }
 }

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
+  $transaction: vi.fn(),
   learningNode: {
     update: vi.fn()
   },
@@ -35,6 +36,8 @@ describe("knowledge title matching", () => {
 
 describe("knowledge service", () => {
   beforeEach(() => {
+    db.$transaction.mockReset();
+    db.$transaction.mockImplementation((callback) => callback(db));
     db.learningNode.update.mockReset();
     db.knowledgePoint.update.mockReset();
     db.knowledgeRecord.create.mockReset();
@@ -52,7 +55,7 @@ describe("knowledge service", () => {
       summary: "State and effects",
       content: "Hooks compose React stateful logic."
     });
-    db.knowledgeRecord.findFirst.mockResolvedValue(null);
+    db.knowledgeRecord.findMany.mockResolvedValue([]);
     db.knowledgeRecord.create.mockResolvedValue({ id: "record_1" });
 
     const { markNodeLearned } = await import("./knowledge-service");
@@ -82,7 +85,7 @@ describe("knowledge service", () => {
       summary: null,
       content: null
     });
-    db.knowledgeRecord.findFirst.mockResolvedValue({ id: "record_1" });
+    db.knowledgeRecord.findMany.mockResolvedValue([{ id: "record_1" }]);
     db.knowledgeRecord.update.mockResolvedValue({ id: "record_1", isActive: true });
 
     const { markNodeLearned } = await import("./knowledge-service");
@@ -95,6 +98,26 @@ describe("knowledge service", () => {
         isActive: true,
         sourceNodeId: "node_1"
       })
+    });
+  });
+
+  it("keeps only one active record when duplicate node records already exist", async () => {
+    db.learningNode.update.mockResolvedValue({
+      id: "node_1",
+      title: "React Hooks",
+      summary: null,
+      content: null
+    });
+    db.knowledgeRecord.findMany.mockResolvedValue([{ id: "record_1" }, { id: "record_2" }]);
+    db.knowledgeRecord.update.mockResolvedValue({ id: "record_1", isActive: true });
+    db.knowledgeRecord.updateMany.mockResolvedValue({ count: 1 });
+
+    const { markNodeLearned } = await import("./knowledge-service");
+    await markNodeLearned("user_1", "node_1", "learned");
+
+    expect(db.knowledgeRecord.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["record_2"] }, userId: "user_1" },
+      data: { isActive: false }
     });
   });
 
