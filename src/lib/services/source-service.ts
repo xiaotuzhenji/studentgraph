@@ -27,6 +27,13 @@ async function getOrCreateDefaultCanvas(tx: TransactionClient, userId: string) {
 }
 
 export async function createLearningSource(userId: string, input: CreateSourceInput) {
+  if (input.modelConfigId) {
+    await db.modelProviderConfig.findFirstOrThrow({
+      where: { id: input.modelConfigId, userId, isEnabled: true },
+      select: { id: true }
+    });
+  }
+
   const fetched = await fetchSourceContent(input);
   const fetchedTitle = fetched.status === "completed" ? fetched.title : undefined;
   const fetchedDescription = fetched.status === "completed" ? fetched.description : undefined;
