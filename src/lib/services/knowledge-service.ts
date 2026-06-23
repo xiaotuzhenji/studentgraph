@@ -6,6 +6,7 @@ type PointForMatching = {
   title: string;
 };
 type TransactionClient = Prisma.TransactionClient;
+const serializableRetryAttempts = 3;
 
 export function normalizeKnowledgeTitle(title: string) {
   return title.trim().toLowerCase().replace(/\s+/g, " ");
@@ -16,7 +17,7 @@ export function titlesMatch(a: string, b: string) {
 }
 
 export async function markNodeLearned(userId: string, nodeId: string, learnedStatus: LearnedStatus) {
-  return db.$transaction(async (tx) => {
+  return runSerializableTransaction(() => db.$transaction(async (tx) => {
     // This update makes concurrent learned toggles contend on the node row before record lookup/create.
     const node = await tx.learningNode.update({
       where: { id_userId: { id: nodeId, userId } },
@@ -30,7 +31,7 @@ export async function markNodeLearned(userId: string, nodeId: string, learnedSta
 
     await upsertNodeKnowledgeRecord(tx, userId, node);
     return node;
-  }, { isolationLevel: "Serializable" });
+  }, { isolationLevel: "Serializable" }));
 }
 
 export async function markKnowledgePointLearned(userId: string, pointId: string, learnedStatus: LearnedStatus) {
@@ -139,4 +140,25 @@ function deactivatePointKnowledgeRecord(userId: string, pointId: string) {
     where: { sourceKnowledgePointId: pointId, userId },
     data: { isActive: false }
   });
+}
+
+async function runSerializableTransaction<T>(action: () => Promise<T>) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < serializableRetryAttempts; attempt += 1) {
+    try {
+      return await action();
+    } catch (error) {
+      if (!isSerializableConflict(error)) {
+        throw error;
+      }
+      lastError = error;
+    }
+  }
+
+  throw lastError;
+}
+
+function isSerializableConflict(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2034";
 }

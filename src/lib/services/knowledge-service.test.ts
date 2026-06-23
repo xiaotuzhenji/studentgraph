@@ -79,6 +79,35 @@ describe("knowledge service", () => {
     });
   });
 
+  it("retries serializable transaction conflicts when marking a node learned", async () => {
+    db.$transaction
+      .mockImplementationOnce(async () => {
+        throw { code: "P2034" };
+      })
+      .mockImplementationOnce((callback) => callback(db));
+    db.learningNode.update.mockResolvedValue({
+      id: "node_1",
+      title: "React Hooks",
+      summary: null,
+      content: null
+    });
+    db.knowledgeRecord.findMany.mockResolvedValue([]);
+    db.knowledgeRecord.create.mockResolvedValue({ id: "record_1" });
+
+    const { markNodeLearned } = await import("./knowledge-service");
+    await markNodeLearned("user_1", "node_1", "learned");
+
+    expect(db.$transaction).toHaveBeenCalledTimes(2);
+    expect(db.knowledgeRecord.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: "user_1",
+        recordType: "node",
+        sourceNodeId: "node_1",
+        isActive: true
+      })
+    });
+  });
+
   it("reactivates an existing node record when a node is marked learned again", async () => {
     db.learningNode.update.mockResolvedValue({
       id: "node_1",
