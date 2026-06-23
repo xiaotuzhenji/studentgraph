@@ -29,40 +29,34 @@ export default function RegisterPage() {
 
   return (
     <main className="auth-page">
-      <section className="auth-layout">
-        <aside className="auth-hero card">
+      <section className="auth-card card">
+        <div className="auth-card-head">
           <span className="auth-kicker">知枝</span>
-          <h1>先注册，再让学习内容自己长出分支。</h1>
-          <p className="lead">把问题、链接、项目和书籍丢进画布，AI 会帮你拆成能继续追问的结构。</p>
+          <h1>创建账号</h1>
+          <p className="lead">先注册，再把问题、链接、项目和书籍丢进你的学习画布。</p>
+        </div>
+        <form onSubmit={handleSubmit} className="auth-form">
+          <label className="field auth-field">
+            <span>邮箱</span>
+            <input name="email" type="email" autoComplete="email" placeholder="name@example.com" required />
+          </label>
+          <label className="field auth-field">
+            <span>密码</span>
+            <input name="password" type="password" autoComplete="new-password" minLength={8} placeholder="至少 8 位" required />
+          </label>
+          {error ? <p role="alert" className="auth-error">{error}</p> : null}
+          <button type="submit" className="btn btn-primary auth-submit">注册</button>
+        </form>
+        <div className="auth-card-foot">
           <div className="auth-points">
             <span>双击进详情</span>
             <span>选中文字提问</span>
-            <span>知识点可标记学会</span>
             <span>多画布管理</span>
           </div>
-        </aside>
-
-        <section className="auth-panel card">
-          <div className="auth-panel-head">
-            <h2>创建账号</h2>
-            <p>开始搭建你的学习图谱。</p>
-          </div>
-          <form onSubmit={handleSubmit} className="auth-form">
-            <label className="field auth-field">
-              <span>邮箱</span>
-              <input name="email" type="email" autoComplete="email" placeholder="name@example.com" required />
-            </label>
-            <label className="field auth-field">
-              <span>密码</span>
-              <input name="password" type="password" autoComplete="new-password" minLength={8} placeholder="至少 8 位" required />
-            </label>
-            {error ? <p role="alert" className="auth-error">{error}</p> : null}
-            <button type="submit" className="btn btn-primary auth-submit">注册</button>
-          </form>
           <p className="auth-footnote">
             已有账号？<a href="/login">去登录</a>
           </p>
-        </section>
+        </div>
       </section>
     </main>
   );

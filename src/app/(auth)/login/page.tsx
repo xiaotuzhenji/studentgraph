@@ -29,40 +29,34 @@ export default function LoginPage() {
 
   return (
     <main className="auth-page">
-      <section className="auth-layout">
-        <aside className="auth-hero card">
+      <section className="auth-card card">
+        <div className="auth-card-head">
           <span className="auth-kicker">知枝</span>
-          <h1>把问题变成一张会生长的学习图谱。</h1>
-          <p className="lead">输入一个问题、链接、项目或书籍，AI 会帮你拆解、展开、提问，并沉淀成个人知识库。</p>
+          <h1>登录知枝</h1>
+          <p className="lead">进入你的学习画布，继续把内容展开成知识图谱。</p>
+        </div>
+        <form onSubmit={handleSubmit} className="auth-form">
+          <label className="field auth-field">
+            <span>邮箱</span>
+            <input name="email" type="email" autoComplete="email" placeholder="name@example.com" required />
+          </label>
+          <label className="field auth-field">
+            <span>密码</span>
+            <input name="password" type="password" autoComplete="current-password" minLength={8} placeholder="输入密码" required />
+          </label>
+          {error ? <p role="alert" className="auth-error">{error}</p> : null}
+          <button type="submit" className="btn btn-primary auth-submit">登录</button>
+        </form>
+        <div className="auth-card-foot">
           <div className="auth-points">
             <span>无线画布</span>
             <span>AI 拆解</span>
-            <span>笔记分支</span>
             <span>知识库沉淀</span>
           </div>
-        </aside>
-
-        <section className="auth-panel card">
-          <div className="auth-panel-head">
-            <h2>登录知枝</h2>
-            <p>继续你的学习图谱。</p>
-          </div>
-          <form onSubmit={handleSubmit} className="auth-form">
-            <label className="field auth-field">
-              <span>邮箱</span>
-              <input name="email" type="email" autoComplete="email" placeholder="name@example.com" required />
-            </label>
-            <label className="field auth-field">
-              <span>密码</span>
-              <input name="password" type="password" autoComplete="current-password" minLength={8} placeholder="输入密码" required />
-            </label>
-            {error ? <p role="alert" className="auth-error">{error}</p> : null}
-            <button type="submit" className="btn btn-primary auth-submit">登录</button>
-          </form>
           <p className="auth-footnote">
             还没有账号？<a href="/register">去注册</a>
           </p>
-        </section>
+        </div>
       </section>
     </main>
   );
